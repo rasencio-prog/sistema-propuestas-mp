@@ -1,0 +1,42 @@
+# 08 · Riesgos y dependencias
+
+Probabilidad (P) e impacto (I): A alta · M media · B baja.
+
+## 1. Riesgos
+
+| ID | Riesgo | P | I | Mitigación |
+| --- | --- | --- | --- | --- |
+| R-01 | La API no entrega campos clave (monto, unidad, rubros, fechas del foro) o los entrega solo en el detalle | M | A | `/p2-api` antes de diseñar el adaptador; columnas del Excel 1 sin dato quedan "No disponible"; nunca se completan con suposiciones. |
+| R-02 | Formato o zona horaria de las fechas de la API ambiguos (hora local sin zona) | M | A | Validar en `/p2`; guardar siempre el texto original; pruebas en transiciones de horario; criterio 100 % de fechas medido contra la ficha. |
+| R-03 | Cuota de 10.000 solicitudes/día o bloqueo por uso abusivo | B | A | Límite propio por debajo (8.000), ritmo máximo, backoff, horario nocturno 22:00-07:00, detalle solo de candidatas, caché por `content_hash`. |
+| R-04 | ChileCompra reemplaza la API (nueva API unificada) o la suspende | M | M | Adaptador versionado `mp_v1` sin lógica de negocio; modelo canónico; si falla, la app informa y permite reintentar sin perder datos. |
+| R-05 | El ticket es personal (Clave Única del propietario); si la persona deja la empresa o el ticket vence, el radar se detiene | M | M | Ticket cifrado por organización con titular y vigencia registrados; alerta de corrida fallida por credencial; procedimiento documentado para reemplazarlo. |
+| R-06 | La carga manual de adjuntos se vuelve cuello de botella | M | M | Embudo: solo las "Descargar"; carpeta destino y link en el Excel; varias cargas a la vez y ZIP. Automatizar solo si aparece una vía oficial verificada. |
+| R-07 | La IA inventa valores o cita mal | M | A | JSON validado; verificación determinística de citas; "No encontrado" / "No verificado"; métrica "valores inventados = 0" en el eval; revisión humana en Compuerta 2. |
+| R-08 | Inyección de instrucciones en las bases | B | A | Documentos como DATOS NO CONFIABLES, sin herramientas, salida por esquema, prueba automatizada con documento malicioso. |
+| R-09 | Mala extracción de tablas (criterios y ponderaciones) o PDF escaneados de baja calidad | M | M | OCR por página sin texto; validación "ponderaciones suman 100 %"; Docling como plan B detrás de la interfaz si el eval lo pide. |
+| R-10 | Costo de IA mayor al esperado | B | M | Tope mensual configurable (inicial USD 40) con alerta al 80 % y bloqueo de análisis nuevos al 100 % (ADR-0005); registro por corrida en `ai_usage`; caché de prompts; elegir Opus vs Sonnet con datos del eval. |
+| R-11 | Backend en el equipo del propietario: si el equipo está apagado o sin red a la hora programada, el radar no corre; un solo equipo es punto único de falla | A | M | Scheduler horario con guarda "ya corrió hoy" (ADR-0007): corre en cuanto el equipo vuelva a estar encendido ese día; ejecución manual; base y archivos en Supabase nube (el equipo no guarda datos únicos). Decidir servicio de contenedores antes de cerrar MVP-2 (ADR-0008). |
+| R-12 | Repo dentro de OneDrive | — | — | **Resuelto** por el propietario: el repo pasa a `C:\dev\sistema-propuestas-mp`. Se mantiene `INTAKE_ROOT` configurable. |
+| R-13 | Desarrollo en Windows: Docker Desktop, finales de línea, `tzdata`, Tesseract y LibreOffice solo dentro de contenedores | M | B | Todo lo nativo corre en contenedores Linux; `.gitattributes` con `eol=lf`; `tzdata` en dependencias; README probado en Windows. |
+| R-14 | Plan gratuito de Supabase pausa proyectos inactivos y no tiene respaldos diarios | M | M | Usar Pro en producción (USD 25/mes) o asumir el riesgo solo en piloto; respaldo propio con `pg_dump` programado. |
+| R-15 | Procrastinate y el pooler de Supabase (modo transacción no soporta `LISTEN/NOTIFY`) | M | B | Worker con conexión directa o pooler en modo sesión; si no, modo sondeo. Se prueba en `/p3`. |
+| R-16 | Integridad del Excel: protección sin contraseña es fácil de quitar; edición en Google Sheets o LibreOffice puede alterar validaciones | M | M | `row_token` HMAC y firma de `_control`; la importación valida todo en el backend; instrucciones piden usar Excel de escritorio. |
+| R-17 | Conjunto de evaluación pequeño al inicio (5 licitaciones tras `/p7`): métricas con poca confianza estadística y calidad de MVP-1 medida tarde | A | M | `/p9` funciona desde 5 y marca los resultados como indicativos (E7-6); plantilla adelantable (E7-1); umbrales se confirman con 15-20. |
+| R-18 | Ley 21.719 de datos personales y transferencia internacional al proveedor de IA | B (MVP-2) / A (MVP-3) | M | En MVP-2 solo se envían bases públicas; requisito: el proveedor no usa los datos para entrenar (sin exigir retención cero, decisión del propietario); CV y datos de profesionales recién en MVP-3, con revisión de retención y consentimiento. |
+| R-21 | Estado del embudo y puntaje guardados en `opportunities` (tabla compartida) | B | M | Correcto con una sola organización. Al habilitar multiempresa se mueven por migración a una tabla por organización (ADR-0006). |
+| R-19 | Un solo usuario-revisor: si no revisa los Excel a tiempo, se pierden cierres | M | M | Días al cierre resaltados; orden por puntaje; (posterior) alerta por correo de cierres próximos. |
+| R-20 | Desviaciones del plan respecto del brief | — | — | **Resuelto:** pdfplumber y estructura de carpetas aprobados; `bids` al detectar rechazado y reemplazado por ADR-0006. |
+
+## 2. Dependencias externas
+
+| Dependencia | Necesaria para | Estado |
+| --- | --- | --- |
+| Ticket de API de Mercado Público (Clave Única) | `/p2` en adelante | Propietario indica que lo cargará en `.env` (`MP_TICKET`) |
+| Documentación oficial vigente de la API (chilecompra.cl/api) | `/p2` | A consultar en `/p2` |
+| Cuenta y proyecto Supabase (prod) + Supabase CLI y Docker Desktop (local) | `/p3` | Decidido por el propietario |
+| Hosting de API y worker en producción | Despliegue | Equipo del propietario por ahora; servicio de contenedores a elegir antes de cerrar MVP-2 (ADR-0008) |
+| Cuentas API de Anthropic y OpenAI sin uso de datos para entrenamiento | `/p7`, `/p9` | Aprobado; cuentas a crear antes de `/p7` |
+| Conjunto de evaluación anotado | Medición de calidad MVP-1 y MVP-2 | 5 al terminar `/p7`, luego 15-20 |
+| Repositorio en GitHub para CI | `/p3` | A confirmar |
+| Lista oficial de feriados de Chile por año | Días hábiles | Librería `holidays` + verificación anual |
