@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "WebFetch(domain:mercadopublico.cl)",
+      "WebFetch(domain:www.mercadopublico.cl)"
+    ]
+  }
+}

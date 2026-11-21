@@ -1,0 +1,34 @@
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Datos reales y archivos generados
+intake/
+exports/
+storage/
+backend/evals/data/
+docs/api-samples/raw/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.next/
+dist/
+
+# Sistema / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.claude/settings.local.json
