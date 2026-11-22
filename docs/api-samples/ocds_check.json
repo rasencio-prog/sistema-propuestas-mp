@@ -1,0 +1,74 @@
+[
+  {
+    "codigo": "1057389-73-LP26",
+    "ruta": "tender",
+    "url": "https://api.mercadopublico.cl/APISOCDS/OCDS/tender/1057389-73-LP26",
+    "http_status": 200,
+    "duration_ms": 1134.8,
+    "respuesta": {
+      "status": 404,
+      "detail": "No se encontraron resultados."
+    },
+    "error": null
+  },
+  {
+    "codigo": "1057389-73-LP26",
+    "ruta": "record",
+    "url": "https://api.mercadopublico.cl/APISOCDS/OCDS/record/1057389-73-LP26",
+    "http_status": 200,
+    "duration_ms": 2098.0,
+    "respuesta": {
+      "status": 404,
+      "detail": "No se encontraron resultados."
+    },
+    "error": null
+  },
+  {
+    "codigo": "1057390-75-LE26",
+    "ruta": "tender",
+    "url": "https://api.mercadopublico.cl/APISOCDS/OCDS/tender/1057390-75-LE26",
+    "http_status": 200,
+    "duration_ms": 1135.3,
+    "respuesta": {
+      "status": 404,
+      "detail": "No se encontraron resultados."
+    },
+    "error": null
+  },
+  {
+    "codigo": "1057390-75-LE26",
+    "ruta": "record",
+    "url": "https://api.mercadopublico.cl/APISOCDS/OCDS/record/1057390-75-LE26",
+    "http_status": 200,
+    "duration_ms": 2052.6,
+    "respuesta": {
+      "status": 404,
+      "detail": "No se encontraron resultados."
+    },
+    "error": null
+  },
+  {
+    "codigo": "1111089-20-LE26",
+    "ruta": "tender",
+    "url": "https://api.mercadopublico.cl/APISOCDS/OCDS/tender/1111089-20-LE26",
+    "http_status": 200,
+    "duration_ms": 1080.9,
+    "respuesta": {
+      "status": 404,
+      "detail": "No se encontraron resultados."
+    },
+    "error": null
+  },
+  {
+    "codigo": "1111089-20-LE26",
+    "ruta": "record",
+    "url": "https://api.mercadopublico.cl/APISOCDS/OCDS/record/1111089-20-LE26",
+    "http_status": 200,
+    "duration_ms": 2071.6,
+    "respuesta": {
+      "status": 404,
+      "detail": "No se encontraron resultados."
+    },
+    "error": null
+  }
+]

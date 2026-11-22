@@ -79,10 +79,11 @@ Reglas estructurales:
 ```mermaid
 flowchart TD
     A[1. Captura<br/>radar programado: listado diario liviano] --> B[2. Normalización y deduplicación<br/>por código oficial]
-    B --> C{Pre-filtro barato<br/>palabras clave / exclusiones}
-    C -->|candidata| D[Detalle por código<br/>solo candidatas]
-    C -->|no candidata| Z1[Registrada como detectada<br/>sin detalle]
-    D --> E[3. Clasificación por línea de servicio<br/>reglas + IA opcional] --> F[Puntaje 0-100 en backend<br/>con explicación por factor]
+    B --> C{¿Código nuevo y<br/>CodigoEstado=Publicada?<br/>ADR-0010}
+    C -->|sí| D[Detalle completo por código<br/>nombre, descripción, ítems, comprador, monto]
+    C -->|no, pero conocida y<br/>cambió estado/FechaCierre| D
+    C -->|no, sin cambios| Z1[Solo se actualiza estado oficial<br/>desde el listado, sin detalle]
+    D --> E[3. Clasificación por línea de servicio<br/>reglas + IA opcional, sobre el detalle completo] --> F[Puntaje 0-100 en backend<br/>con explicación por factor]
     F --> FD{Filtros duros<br/>estado oficial Publicada<br/>y cierre ≥ 3 días desde la corrida}
     FD -->|no cumple| Z0[Queda detectada<br/>fuera del Excel]
     FD -->|cumple| SEL[Selección del lote<br/>50 de mayor puntaje + todas con puntaje ≥ 40]
@@ -179,6 +180,11 @@ Ambas máquinas de estados viven en `modules/workflow`; toda transición queda e
 
 ## 4. Secuencia del radar programado
 
+Estrategia de detalle, ritmo, ventana de ejecución y estimación de duración: **ADR-0010** (decisión del propietario
+tras `/p2-api`). Resumen: se pide el detalle completo de toda licitación de código nuevo en estado Publicada, y de
+toda licitación conocida cuyo `CodigoEstado` o `FechaCierre` cambió en el listado (ambos vienen sin costo de cuota);
+nunca se usa el título como pre-filtro, porque el listado no trae rubro y descartaría candidatas válidas.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -188,29 +194,33 @@ sequenceDiagram
     participant A as Adaptador mp_v1
     participant M as API Mercado Público
     participant DB as PostgreSQL
-    S->>DB: ¿hora local ≥ hora configurada y sin corrida OK hoy?
+    S->>DB: ¿hora local en ventana configurada (01:00-05:00 Chile, ADR-0010) y sin corrida OK hoy?
     S->>R: encola radar(fecha_radar) con bloqueo único
     R->>DB: crea radar_runs (iniciada)
     R->>Q: reserva 1 solicitud
-    R->>A: listado diario (endpoint A VALIDAR EN /p2-api)
+    R->>A: listado diario (GET licitaciones.json?fecha=ddmmaaaa, confirmado en /p2-api, docs/10)
     A->>M: GET con ticket (solo en memoria)
-    M-->>A: listado
+    M-->>A: listado (solo CodigoExterno, Nombre, CodigoEstado, FechaCierre)
     A-->>R: lista canónica + api_call_log
-    R->>DB: upsert por código oficial; registra cambios
-    loop candidatas que pasan pre-filtro (presupuesto de cuota)
-        R->>Q: reserva 1 solicitud (respeta ritmo máx. y límite diario)
+    R->>DB: upsert por código oficial; compara CodigoEstado/FechaCierre contra lo guardado; registra cambios en opportunity_changes
+    loop códigos nuevos en Publicada, o conocidos con cambio de estado/FechaCierre (ADR-0010)
+        R->>Q: reserva 1 solicitud (ritmo configurable, default 1 cada 2s)
         R->>A: detalle por código
         A->>M: GET
-        M-->>A: detalle
-        R->>DB: normaliza fechas (UTC + texto original), comprador, ítems
+        M-->>A: detalle completo (nombre, descripción, ítems/rubro, comprador, monto, fechas)
+        R->>DB: normaliza fechas (UTC + texto original, fechas centinela ≤1950 → missing), comprador, ítems
     end
-    R->>DB: clasificación + puntaje (opportunities, opportunity_service_lines)
-    R->>DB: cierra radar_runs con conteos y errores
+    R->>DB: clasificación + puntaje sobre el detalle completo (opportunities, opportunity_service_lines)
+    R->>DB: cierra radar_runs con conteos, consumo de cuota y errores
 ```
 
-Errores: 429/5xx → backoff exponencial con jitter (máx. N intentos), luego la candidata queda `detail_pending` y se
-reintenta en la siguiente corrida; nunca se pierde lo ya guardado. Si se alcanza el límite diario configurado
-(por defecto 8.000 de 10.000), la corrida termina como "parcial".
+Errores: 429/5xx → backoff exponencial (2s, 4s, 8s..., máx. N intentos; `/p2-api` observó un 429 real incluso
+respetando 1 req/s, así que es comportamiento esperable, no excepcional), luego la candidata queda `detail_pending`
+y se reintenta en la siguiente corrida; nunca se pierde lo ya guardado. Si se alcanza el límite diario configurado
+(por defecto 8.000 de 10.000, contado por día calendario de Chile), la corrida termina como "parcial". Estados de
+licitación no documentados por ChileCompra (se observaron `15` y `16` junto a los 6 conocidos) se guardan con el
+código y texto crudos (`official_status_text`), se marcan como "estado no documentado" y se registra una alerta en
+el log — nunca hacen fallar la corrida.
 
 ## 5. Seguridad transversal
 

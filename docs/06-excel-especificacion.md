@@ -1,11 +1,14 @@
 # 06 · Especificación de Excel 1 y Excel 2
 
 Estado: **APROBADO con cambios** (21-11-2026): selección del lote y filtros duros (§1.0), obligatoriedad de motivo y
-responsable en la Compuerta 1 (§1.1 y §1.4), creación de la postulación al importar "Descargar" (§1.4), umbrales del
-semáforo aprobados como provisionales (§2.4).
+responsable en la Compuerta 1 (§1.1 y §1.6), creación de la postulación al importar "Descargar" (§1.6), umbrales del
+semáforo aprobados como provisionales (§2.4). **APROBADO con cambios** (22-11-2026, tras `/p2-api`): hoja `Detalle`
+de solo lectura, columna "Resumen IA" (§1.2, ADR-0011), campos nuevos del detalle de la API en ambas hojas, reorden
+de columnas de `Oportunidades` (§1.1).
 
-Base: secciones 5.2 y 5.3 del brief. Generación y lectura con `openpyxl`. Versión de formato: `excel-spec 1.0`
-(se escribe en la hoja de control; si cambia la estructura, sube la versión y la importación rechaza formatos viejos).
+Base: secciones 5.2 y 5.3 del brief. Generación y lectura con `openpyxl`. Versión de formato: `excel-spec 1.1`
+(subió de 1.0 al agregar la hoja `Detalle`, la columna "Resumen IA" y los campos nuevos confirmados en `/p2-api`;
+se escribe en la hoja de control y la importación rechaza formatos viejos).
 
 ## 0. Reglas comunes
 
@@ -21,7 +24,7 @@ Base: secciones 5.2 y 5.3 del brief. Generación y lectura con `openpyxl`. Versi
 | Nombre de archivo | Excel 1: `preseleccion_<AAAA-MM-DD>_lote<N>_v<versión>.xlsx`. Excel 2: `fichas_<AAAA-MM-DD>_lote<N>_v<versión>.xlsx`. |
 | Seguridad | Solo `.xlsx` (nunca `.xlsm`). Valores de texto que empiezan con `=`, `+`, `-` o `@` se escriben como texto (prefijo `'`) para evitar inyección de fórmulas. |
 
-Origen: **API** = dato de la API oficial (campo exacto A VALIDAR EN /p2-api) · **Backend** = calculado de forma
+Origen: **API** = dato de la API oficial (campo exacto confirmado en `/p2-api`, ver `docs/10-api-validada.md`) · **Backend** = calculado de forma
 determinística · **Clasificador** = reglas + IA opcional, validado · **IA+cita** = extracción con cita verificada ·
 **Persona** = lo llena el revisor · **Construido** = armado por el sistema sin consultar el portal.
 
@@ -29,8 +32,14 @@ determinística · **Clasificador** = reglas + IA opcional, validado · **IA+cit
 
 ## 1. Excel 1 — Preselección
 
-Hojas: `Oportunidades` (visible), `Instrucciones` (visible), `_listas` (muy oculta), `_control` (muy oculta).
-Una fila por oportunidad candidata, ordenadas por puntaje descendente y luego por fecha de cierre ascendente.
+Hojas: `Oportunidades` (visible, columnas para decidir rápido), `Detalle` (visible, solo lectura, el resto de los
+campos del detalle de la API), `Instrucciones` (visible), `_listas` (muy oculta), `_control` (muy oculta). Ambas
+hojas de datos tienen una fila por oportunidad candidata con la misma llave (código de licitación) y el mismo
+orden: puntaje descendente y luego fecha de cierre ascendente. **`Detalle` es puramente informativa**: la
+importación solo lee `Oportunidades` (igual que antes); si la persona la borra, la reordena o la edita no afecta la
+importación ni genera error — por eso no lleva columna `Verificador`. Formato `excel-spec 1.1` (sube de 1.0 por el
+cambio de estructura; la importación de un Excel 1 generado en formato 1.0 se rechaza con el mensaje ya
+especificado en §1.6).
 
 ### 1.0 Qué oportunidades entran al lote
 
@@ -46,27 +55,27 @@ Todos los valores son configurables en `scoring_profiles.thresholds` y quedan re
    si hay menos, se completa hasta 50 con las siguientes por puntaje.
 4. Al exportar, las incluidas pasan a `preseleccionada`.
 
-### 1.1 Hoja `Oportunidades`
+### 1.1 Hoja `Oportunidades` (columnas para decidir rápido)
 
 | Col | Nombre | Tipo | Origen | Protegida | Validación | Formato condicional / notas |
 | --- | --- | --- | --- | --- | --- | --- |
-| A | Código licitación | Texto | API | Sí | — | **Llave de reimportación.** Negrita. |
-| B | Nombre | Texto | API | Sí | — | Ajuste de texto. |
-| C | Descripción | Texto (máx. 500 car.) | API | Sí | — | Truncada con "…"; la completa queda en la ficha. |
-| D | Organismo | Texto | API | Sí | — | |
-| E | Unidad compradora | Texto | API | Sí | — | A VALIDAR EN /p2-api si viene en listado o solo en detalle. |
-| F | Región | Texto | API | Sí | — | |
-| G | Tipo de licitación | Texto | API | Sí | — | Texto oficial (y código entre paréntesis). A VALIDAR EN /p2-api. |
-| H | Monto estimado | Número o "No visible" | API + Backend | Sí | — | "No visible" en gris cursiva. Moneda A VALIDAR EN /p2-api. |
-| I | Moneda | Texto | API | Sí | — | CLP / UF / UTM / USD según venga. |
-| J | Fecha de cierre (hora de Chile) | Fecha-hora | API + Backend | Sí | — | Convertida desde UTC. Si no se pudo interpretar: texto original + fondo naranja. |
+| A | Código licitación | Texto | API | Sí | — | **Llave de reimportación y de enlace con `Detalle`.** Negrita. |
+| B | Link a la ficha | Hipervínculo | Construido | Sí | — | Texto "Ver ficha"; URL con el patrón confirmado en `/p2-api` (docs/10 §6). El sistema no accede al portal. |
+| C | Nombre | Texto | API | Sí | — | Ajuste de texto. |
+| D | Resumen IA | Texto (2-3 líneas) | IA + caché (ADR-0011) | Sí | — | Qué se compra, para quién, monto si es visible, duración y días al cierre. Vacío con nota "No generado (presupuesto de IA agotado)" o "No generado (función desactivada)" según corresponda — nunca se omite la columna. Reglas completas en §1.2. |
+| E | Organismo | Texto | API (detalle) | Sí | — | `Comprador.NombreOrganismo`. |
+| F | Región | Texto | API (detalle) | Sí | — | `Comprador.RegionUnidad`, texto libre de la API (no codificado). |
+| G | Tipo de licitación | Texto | API (detalle) | Sí | — | Código (`Tipo`, ej. "LE") viene de la API; el texto oficial entre paréntesis se arma con la tabla fija del manual (docs/10 §3). |
+| H | Monto estimado | Texto: número + moneda, o "No visible" | API + Backend | Sí | — | Ej. `"18.614.310 CLP"`. "No visible" en gris cursiva cuando `VisibilidadMonto=0` (y entonces `MontoEstimado` es `null`, regla confirmada sin excepción, docs/10 §2.2). |
+| I | Duración del contrato | Texto | API (detalle) | Sí | — | Armada desde `TiempoDuracionContrato` + texto de `UnidadTiempoDuracionContrato` (tabla 3.6, docs/10 §3), ej. "24 meses". "No informado" si viene vacío. |
+| J | Fecha de cierre (hora de Chile) | Fecha-hora | API + Backend | Sí | — | `Fechas.FechaCierre` del detalle, **no** el campo raíz (viene vacío, docs/10 §2.2). Si no se pudo interpretar: texto original + fondo naranja. |
 | K | Días corridos al cierre | Entero | Backend | Sí | — | Calculado **al momento de exportar** (el encabezado lo dice). Rojo si ≤ umbral rojo (def. 3), amarillo si ≤ umbral amarillo (def. 7). |
 | L | Días hábiles al cierre | Entero | Backend | Sí | — | Lunes a viernes sin feriados de Chile. Mismo formato que K. |
-| M | Estado oficial | Texto "Publicada (5)" | API | Sí | — | Si ≠ Publicada, fila en gris. |
-| N | Líneas de servicio | Texto (separadas por "; ") | Clasificador | Sí | — | "Sin línea" en naranja si no se asignó ninguna. |
-| O | Puntaje de afinidad (0-100) | Entero | Backend | Sí | — | Escala de color de 3 puntos (0 rojo pálido – 50 – 100 verde). |
-| P | Justificación | Texto (1-2 líneas) | Backend / Clasificador | Sí | — | Ej.: "Coincide 'mesa de ayuda', rubro 43232300; afinidad 82, plazo 12 días". |
-| Q | Link a la ficha | Hipervínculo | Construido | Sí | — | Texto "Ver ficha"; URL construida con el patrón confirmado en /p2-api. El sistema no accede al portal. |
+| M | Fin de preguntas (hora de Chile) | Fecha-hora | API (detalle) | Sí | — | `Fechas.FechaFinal` (cierre del foro de preguntas). |
+| N | Estado oficial | Texto "Publicada (5)" | API | Sí | — | Si ≠ Publicada, fila en gris. Si el código no está documentado (docs/10 §3), muestra el texto crudo de la API con nota "(código no documentado)", sin inventar significado. |
+| O | Líneas de servicio | Texto (separadas por "; ") | Clasificador | Sí | — | "Sin línea" en naranja si no se asignó ninguna. |
+| P | Puntaje de afinidad (0-100) | Entero | Backend | Sí | — | Escala de color de 3 puntos (0 rojo pálido – 50 – 100 verde). |
+| Q | Justificación | Texto (1-2 líneas) | Backend / Clasificador | Sí | — | Ej.: "Coincide 'mesa de ayuda', rubro 43232300; afinidad 82, plazo 12 días". |
 | R | Carpeta destino | Texto `intake/<código>/` | Construido | Sí | — | Ruta relativa a `INTAKE_ROOT`. Se crea **solo** al importar "Descargar". |
 | S | Adjuntos cargados (Sí/No) | Texto Sí/No | Backend | Sí | — | "Sí" en verde si hay ≥ 1 documento registrado para esa oportunidad al momento de exportar. |
 | T | Decisión | Lista | Persona | **No** | Lista: `Descargar`, `Descartar`, `Dudoso` (vacío permitido) | Verde / gris / amarillo según valor. |
@@ -80,17 +89,62 @@ Lista de **Motivos** (`_listas!A`, configurable por organización):
 `Requisitos probablemente inalcanzables`, `Región u organismo no prioritario`, `Ya revisada / duplicada`,
 `Falta información para decidir`, `Otro (ver comentario)`.
 
-### 1.2 Hoja `Instrucciones`
+### 1.2 Columna "Resumen IA" — reglas de generación (ADR-0011)
 
-Texto en español de Chile: objetivo del lote; significado de cada decisión; qué columnas se editan (T-W); que no se
-deben mover, borrar ni agregar filas o columnas; que "Días al cierre" corresponde a la fecha de exportación; cómo
-devolver el archivo (pantalla "Lotes y ejecuciones"); qué pasa con "Dudoso" (vuelve en el próximo lote); fuente de datos.
+- Se genera **solo** para las oportunidades que entran al lote (§1.0), no para todas las `detectada`.
+- Entrada exclusiva: campos ya confirmados de la API (nombre, descripción, ítems, organismo, monto si es visible,
+  duración del contrato, días al cierre, línea de servicio asignada). Nunca bases ni documentos.
+- **Nunca inventa** montos ni plazos que no estén en los datos de entrada; si falta un dato relevante, el resumen lo
+  dice en vez de omitirlo en silencio (ej. "monto no visible").
+- **Caché por `content_hash`**: si el detalle de la oportunidad no cambió desde el último resumen generado
+  (`opportunity_ai_summaries.content_hash = opportunities.content_hash`), se reutiliza el resumen guardado; no se
+  vuelve a llamar al proveedor de IA.
+- Cuenta contra el tope mensual de IA de la organización (ADR-0005/ADR-0011). Si el presupuesto está en 100 % ese
+  mes, la celda queda vacía con la nota "No generado (presupuesto de IA agotado)".
+- Desactivable por configuración (`organizations.settings.ai_summary_enabled`); si está desactivado, la columna
+  existe pero vacía con la nota "No generado (función desactivada)" — la estructura del Excel no cambia según esta
+  configuración, para no romper la reimportación.
+- Modelo económico por defecto (`claude-haiku-5-5`, configurable), nunca el modelo de extracción de MVP-2.
 
-### 1.3 Hoja `_control` (muy oculta, protegida)
+### 1.3 Hoja `Detalle` (solo lectura, informativa)
+
+Una fila por oportunidad del lote, misma llave que `Oportunidades` (columna A = código). Hoja protegida, **todas**
+las columnas bloqueadas (no se importa ninguna de ellas; no lleva `Verificador`).
+
+| Col | Nombre | Tipo | Origen | Notas |
+| --- | --- | --- | --- | --- |
+| A | Código licitación | Texto | API | Llave, igual que en `Oportunidades`. |
+| B | Descripción oficial completa | Texto | API | `Descripcion` del detalle, truncada a **~1.000 caracteres** con "…" en la celda; el texto completo siempre está en `opportunities.description` (no se pierde). |
+| C | Ítems | Texto | API | Uno por línea dentro de la celda (ajuste de texto): `"<NombreProducto> – <Cantidad> <UnidadMedida> (rubro <CodigoCategoria>: <Categoria>)"`, repetido para cada ítem. |
+| D | Tipo de convocatoria | Texto "Abierta"/"Cerrada" | API | `TipoConvocatoria` (1 Abierta, 0 Cerrada). |
+| E | Unidad compradora | Texto | API | `Comprador.NombreUnidad` (ya está también implícita en Oportunidades vía Organismo; aquí se detalla la unidad específica). |
+| F | RUT unidad compradora | Texto | API | `Comprador.RutUnidad`. |
+| G | Comuna | Texto | API | `Comprador.ComunaUnidad`; vacía si la API no la informó (docs/10 §9). |
+| H | Fuente de financiamiento | Texto | API | `FuenteFinanciamiento`; "No informado" si viene vacío (3/10 en la muestra). |
+| I | Justificación del monto estimado | Texto | API | `JustificacionMontoEstimado`; "No informado" si viene vacío. |
+| J | Formalización del contrato | Texto | API | A partir de `Contrato` (1 "Requiere suscripción", 2 "Se formaliza con orden de compra"); solo aplica a tipo LE. |
+| K | Renovación | Texto | API | A partir de `EsRenovable`, `ValorTiempoRenovacion`, `PeriodoTiempoRenovacion`; "No renovable" si `EsRenovable=0`. |
+| L | Subcontratación permitida | Texto Sí/No | API | `SubContratacion`. |
+| M | Modalidad y tipo de pago | Texto | API | Texto de `Modalidad` (tabla 3.4, docs/10 §3) + código crudo de `TipoPago` (se vio `"-1"` no documentado: se muestra tal cual, sin inventar significado). |
+| N | Responsable de contrato | Texto | API | Nombre, correo y teléfono (`NombreResponsableContrato`/`EmailResponsableContrato`/`FonoResponsableContrato`); estos dos últimos casi siempre vienen vacíos (docs/10 §9). |
+| O | Responsable de pago | Texto | API | Nombre y correo (`NombreResponsablePago`/`EmailResponsablePago`). |
+| P | Reclamos del organismo | Entero | API | `CantidadReclamos`; nota aclaratoria: es un contador del organismo completo al momento de la consulta, no exclusivo de esta licitación. |
+| Q | ¿Licitación tipo? | Texto Sí/No | API | `EsBaseTipo`. |
+| R | Adjudicación | Texto | API | Si `CodigoEstado=8`: fecha, número de acta, cantidad de oferentes y el link real `Adjudicacion.UrlActa` (dato de la propia API, no scraping — docs/10 §5); si no está adjudicada, "No aplica". |
+
+### 1.4 Hoja `Instrucciones`
+
+Texto en español de Chile: objetivo del lote; significado de cada decisión; qué columnas se editan (T-W de
+`Oportunidades`); que `Detalle` es solo informativa y no se importa; que no se deben mover, borrar ni agregar filas
+o columnas en `Oportunidades`; que "Días al cierre" corresponde a la fecha de exportación; que el "Resumen IA"
+puede faltar (presupuesto agotado o función desactivada, no es un error); cómo devolver el archivo (pantalla
+"Lotes y ejecuciones"); qué pasa con "Dudoso" (vuelve en el próximo lote); fuente de datos.
+
+### 1.5 Hoja `_control` (muy oculta, protegida)
 
 | Clave (col. A) | Valor (col. B) |
 | --- | --- |
-| `format_version` | `excel-spec 1.0` |
+| `format_version` | `excel-spec 1.1` |
 | `batch_type` | `preselection` |
 | `batch_id` | UUID del lote |
 | `batch_number` | N |
@@ -106,7 +160,7 @@ devolver el archivo (pantalla "Lotes y ejecuciones"); qué pasa con "Dudoso" (vu
 | `selection_rule` | `top_n=50; min_score_include=40; min_days_to_close=3; official_status=Publicada` (valores usados) |
 | `signature` | HMAC del contenido de esta hoja (detecta edición de `_control`) |
 
-### 1.4 Reglas de reimportación del Excel 1
+### 1.6 Reglas de reimportación del Excel 1
 
 Validación del archivo (se rechaza **todo** el archivo):
 1. Extensión `.xlsx`, tamaño ≤ 10 MB, contenedor ZIP válido, sin `vbaProject.bin` ni objetos externos.

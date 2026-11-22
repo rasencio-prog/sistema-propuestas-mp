@@ -22,7 +22,7 @@ Estado: **APROBADO con cambios** (21-11-2026, ADR-0006). Cambios respecto de la 
   `opportunities` también guarda el estado del embudo, el puntaje y la clasificación, que dependen de la organización
   (decisión del propietario, ADR-0006). Al habilitar multiempresa esos campos se mueven, por migración, a una tabla por
   organización. Postulaciones, documentos y análisis ya llevan `organization_id` (directo o vía `bids`).
-- Nombres de campos de la API de Mercado Público: **A VALIDAR EN /p2-api**. Las columnas de abajo son el modelo
+- Nombres de campos de la API de Mercado Público: **confirmados en `/p2-api`**. Las columnas de abajo son el modelo
   canónico interno; el mapeo API → canónico se documenta en `docs/10-api-validada.md`.
 - La cola de trabajos (Procrastinate) crea su propio esquema `procrastinate`; no se modela aquí.
 
@@ -45,6 +45,7 @@ erDiagram
     opportunities ||--o{ opportunity_items : contiene
     opportunities ||--o{ opportunity_dates : tiene
     opportunities ||--o{ opportunity_changes : cambia
+    opportunities ||--o| opportunity_ai_summaries : "resumen IA (ADR-0011)"
 
     scoring_profiles ||--o{ opportunities : puntua
     opportunities ||--o{ opportunity_service_lines : clasifica
@@ -164,10 +165,11 @@ erDiagram
     buyers {
         uuid id PK
         text source
-        text organism_code "A VALIDAR"
+        text organism_code "= Comprador.CodigoOrganismo, confirmado /p2-api"
         text organism_name
-        text unit_code "A VALIDAR"
+        text unit_code "= Comprador.CodigoUnidad, confirmado /p2-api"
         text unit_name
+        text unit_rut "= Comprador.RutUnidad, confirmado /p2-api"
         text region
         text commune
     }
@@ -175,7 +177,7 @@ erDiagram
         uuid id PK
         text source "mercado_publico"
         text official_code UK
-        text opportunity_type_code "A VALIDAR"
+        text opportunity_type_code "= Tipo; valores L1/LE/LP/LQ/LR/E2/CO/B2/H2/I2/LS, confirmado /p2-api"
         text opportunity_type_text
         text title
         text description
@@ -185,6 +187,7 @@ erDiagram
         text amount_visibility "visible|not_visible|unknown"
         int official_status_code
         text official_status_text
+        bool official_status_documented "false si CodigoEstado no está en la tabla conocida (ej. 15, 16 observados en /p2-api); genera alerta en el log, nunca falla"
         text internal_status "embudo hasta C1"
         timestamptz internal_status_changed_at
         numeric score "0-100"
@@ -193,6 +196,26 @@ erDiagram
         text classification_justification
         timestamptz classified_at
         text source_url "link construido a la ficha"
+        int contract_duration_value "= TiempoDuracionContrato, confirmado /p2-api"
+        int contract_duration_unit_code "= UnidadTiempoDuracionContrato; tabla 3.6 del manual (1 Horas...5 Años)"
+        bool is_renewable "= EsRenovable"
+        int renewal_value "= ValorTiempoRenovacion; casi siempre vacío en la muestra"
+        text renewal_period_text "= PeriodoTiempoRenovacion; siempre null en la muestra"
+        bool subcontracting_allowed "= SubContratacion"
+        int contract_formalization_code "= Contrato (1 requiere suscripción, 2 formaliza con OC; solo visible en tipo LE)"
+        int payment_modality_code "= Modalidad; tabla 3.4 del manual"
+        text payment_type_code "= TipoPago; se vio '-1' no documentado, guardar crudo"
+        text contract_responsible_name "= NombreResponsableContrato"
+        text contract_responsible_email "= EmailResponsableContrato; viene '' casi siempre"
+        text contract_responsible_phone "= FonoResponsableContrato; viene '' casi siempre"
+        text payment_responsible_name "= NombreResponsablePago"
+        text payment_responsible_email "= EmailResponsablePago; viene '' casi siempre"
+        int buyer_complaints_count_snapshot "= CantidadReclamos; cuenta del organismo al momento de la consulta, no exclusiva de esta licitación"
+        bool is_standard_type "= EsBaseTipo"
+        int award_act_type_code "= Adjudicacion.Tipo; tabla 3.7 del manual; null salvo Adjudicada"
+        text award_act_number "= Adjudicacion.Numero"
+        int award_offerors_count "= Adjudicacion.NumeroOferentes"
+        text award_act_url "= Adjudicacion.UrlActa; URL real de la propia API a mercadopublico.cl, no es scraping"
         jsonb raw_list "saneado"
         jsonb raw_detail "saneado"
         text content_hash
@@ -204,9 +227,11 @@ erDiagram
         uuid id PK
         uuid opportunity_id FK
         int line_no
-        text category_code "rubro, A VALIDAR"
+        int product_code "código ONU/UNSPSC = Items.Listado[].CodigoProducto, confirmado /p2-api"
+        text category_code "rubro UNSPSC = Items.Listado[].CodigoCategoria; solo en el detalle, confirmado /p2-api"
         text category_name
         text product_name
+        text description "= Items.Listado[].Descripcion, confirmado /p2-api"
         numeric quantity
         text unit
     }
@@ -229,6 +254,17 @@ erDiagram
         jsonb new_value
         bool requires_reanalysis
         timestamptz detected_at
+    }
+    opportunity_ai_summaries {
+        uuid id PK
+        uuid opportunity_id FK UK
+        text summary_text
+        text model "ej. claude-haiku-5-5"
+        text prompt_version
+        text content_hash "= opportunities.content_hash al momento de generar; no se regenera si no cambia"
+        text status "generado|no_generado_presupuesto|desactivado"
+        uuid ai_usage_id FK
+        timestamptz generated_at
     }
     bids {
         uuid id PK
@@ -432,7 +468,8 @@ erDiagram
     ai_usage {
         uuid id PK
         uuid organization_id FK
-        uuid analysis_run_id FK
+        uuid analysis_run_id FK "nulo si el uso es un resumen IA de Excel 1 (ADR-0011)"
+        uuid opportunity_id FK "solo para resumen IA de Excel 1 (ADR-0011); nulo en usos de MVP-2"
         text provider
         text model
         int input_tokens
@@ -473,8 +510,9 @@ erDiagram
 | buyers | `UNIQUE(source, organism_code, unit_code)` | `(region)` | p4 |
 | opportunities | `UNIQUE(source, official_code)` ← deduplicación; `CHECK internal_status IN ('detectada','preseleccionada','descartada_preseleccion','documentos_pendientes','cerrada_sin_decision')`; `CHECK score BETWEEN 0 AND 100` | `(official_status_code)`, `(buyer_id)`, `(internal_status, score DESC)`, GIN trigram en `title` | p4 |
 | opportunity_items | `UNIQUE(opportunity_id, line_no)` | `(category_code)` | p4 |
-| opportunity_dates | `UNIQUE(opportunity_id, date_type)`; `CHECK date_type IN ('publication','questions_close','answers_publication','offers_close','technical_opening','economic_opening','award_estimated', …)` — lista final A VALIDAR EN /p2-api | `(date_type, value_utc)` para "próximos cierres" | p4 |
+| opportunity_dates | `UNIQUE(opportunity_id, date_type)`; `CHECK date_type IN ('publication','questions_close','answers_publication','offers_close','technical_opening','economic_opening','award_estimated','award_actual','support_physical','evaluation_time','estimated_signature','site_visit','background_delivery','user_dates')` — lista final confirmada en `/p2-api` (docs/10 §8.2) | `(date_type, value_utc)` para "próximos cierres" | p4 |
 | opportunity_changes | — | `(opportunity_id, detected_at DESC)` | p4 |
+| opportunity_ai_summaries | `UNIQUE(opportunity_id)` | — | p5 (ADR-0011) |
 | opportunity_service_lines | PK `(opportunity_id, service_line_id, method)` | `(service_line_id)` | p4 |
 | review_batches | `UNIQUE(organization_id, batch_type, batch_number, version)` | — | p5 |
 | review_batch_items | PK `(batch_id, opportunity_id)`; `UNIQUE(batch_id, row_number)`; `CHECK` `bid_id` no nulo si el lote es `summary` (validado en servicio) | `(opportunity_id)`, `(bid_id)` | p5 |
@@ -490,7 +528,7 @@ erDiagram
 | requirements | `UNIQUE(analysis_run_id, fingerprint)` | `(bid_id, fingerprint)` | p7 |
 | evaluation_criteria | — | `(analysis_run_id)` | p7 |
 | evidence_links | `CHECK num_nonnulls(extracted_field_id, requirement_id, criterion_id) = 1` | `(document_id)`, una por cada FK | p7 |
-| ai_usage | — | `(organization_id, created_at)` | p7 |
+| ai_usage | `CHECK num_nonnulls(analysis_run_id, opportunity_id) = 1` (ADR-0011) | `(organization_id, created_at)` | p7 (MVP-2) / p5 (resumen IA) |
 | field_overrides | Parcial `UNIQUE(bid_id, field_key) WHERE is_current` | — | p8 |
 | requirement_reviews | Parcial `UNIQUE(bid_id, fingerprint) WHERE is_current` | — | p8 |
 
@@ -519,8 +557,18 @@ por ser derivados recalculables.
    referencia polimórfica sin integridad.
 5. **`review_batch_items` + `row_token`**: cada fila exportada lleva un token HMAC (lote + código + fila) en una
    columna oculta protegida. Detecta códigos alterados aunque se cambien por otro código válido del mismo lote.
-6. **Día de cuota** (`api_quota_usage.quota_date`): se asume día calendario de Chile; A VALIDAR EN /p2-api cuándo
-   reinicia ChileCompra el contador.
+6. **Día de cuota** (`api_quota_usage.quota_date`): se asume día calendario de Chile; la página oficial solo confirma
+   el límite (10.000/día por ticket), no la hora exacta de reinicio — queda como riesgo documentado (no bloqueante,
+   ver `docs/10-api-validada.md` §8.2 y `docs/08` R-03), no como dato inventado.
+7. **Tipos JSON inconsistentes con el manual** (confirmado en `/p2-api`, docs/10 §2.2): varios campos documentados
+   como entero/bit por ChileCompra llegan como string (`"0"`/`"1"`, etc.). El adaptador coacciona el tipo; nunca
+   asume el tipo documentado sin verificar.
+8. **El radar pide el detalle de toda licitación nueva en Publicada, no solo las que pasan un filtro de palabras
+   clave** (ADR-0010): el listado no trae rubro, así que un pre-filtro por título descartaría candidatas válidas.
+   Una conocida solo se vuelve a detallar si el listado muestra cambio de `CodigoEstado` o `FechaCierre`.
+9. **Resumen IA del Excel 1 antes de que exista `bids`** (ADR-0011): `opportunity_ai_summaries` cuelga de
+   `opportunities`, no de `bids`; usa el mismo presupuesto mensual de IA (`ai_usage.opportunity_id`) y se cachea por
+   `content_hash` para no regenerar si el detalle no cambió.
 
 ## 5. Tablas que quedan para MVP-3 (no se crean ahora)
 

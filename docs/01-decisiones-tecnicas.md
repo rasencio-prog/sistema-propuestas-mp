@@ -156,6 +156,9 @@ Notas de diseño que aplican a ambos:
   auditoría, aviso en "Lotes y ejecuciones" y advertencia en el log. Al llegar al 100 %: no se inician nuevos análisis
   (quedan en espera con estado `bloqueado_presupuesto`) hasta el mes siguiente o hasta que un administrador suba el tope
   (cambio auditado). Las corridas del eval cuentan para el mismo tope.
+- **Primer uso de IA, antes de lo previsto aquí:** el resumen de 2-3 líneas del Excel 1 (MVP-1, columna "Resumen IA")
+  también usa `LLMProvider` y cuenta contra este mismo tope, con modelo económico (Haiku) y caché — decisión del
+  propietario posterior a esta sección, documentada en ADR-0011.
 - Retención cero de datos y transferencia internacional se revisan en MVP-3 (CV y datos de la empresa).
 
 ### 2.8 Calidad y herramientas
@@ -197,3 +200,6 @@ justifica, con nueva aprobación.
 6. [ADR-0006](decisions/ADR-0006-estado-interno-y-bids.md) Estado interno del embudo en `opportunities`; `bids` nace con "Descargar".
 7. [ADR-0007](decisions/ADR-0007-scheduler-radar.md) Scheduler horario con guarda de "ya corrió hoy" en hora de Chile.
 8. [ADR-0008](decisions/ADR-0008-produccion-local-contenedores.md) Producción inicial en el equipo del propietario; contenedores listos para un servicio en la nube.
+9. [ADR-0009](decisions/ADR-0009-zona-horaria-api-mp.md) Zona horaria asumida (`America/Santiago`) para las fechas de la API; Magallanes/Isla de Pascua como riesgo.
+10. [ADR-0010](decisions/ADR-0010-radar-detalle-toda-publicada.md) El radar pide el detalle de toda licitación nueva en Publicada; ritmo, backoff y ventana de cuota.
+11. [ADR-0011](decisions/ADR-0011-resumen-ia-excel1.md) Resumen IA en el Excel 1 (MVP-1), cacheado y contra el mismo presupuesto de IA.

@@ -1,0 +1,127 @@
+{
+  "total_requests": 12,
+  "calls": [
+    {
+      "label": "listado_fecha_20112026",
+      "url": "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?fecha=20112026&ticket=<TICKET>",
+      "http_status": 200,
+      "duration_ms": 439.2,
+      "body_bytes": 225417,
+      "error": null
+    },
+    {
+      "label": "detalle_1057384-176-L126",
+      "url": "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?codigo=1057384-176-L126&ticket=<TICKET>",
+      "http_status": 200,
+      "duration_ms": 302.6,
+      "body_bytes": 3172,
+      "error": null
+    },
+    {
+      "label": "detalle_1057389-73-LP26",
+      "url": "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?codigo=1057389-73-LP26&ticket=<TICKET>",
+      "http_status": 200,
+      "duration_ms": 117.7,
+      "body_bytes": 12445,
+      "error": null
+    },
+    {
+      "label": "detalle_1057390-75-LE26",
+      "url": "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?codigo=1057390-75-LE26&ticket=<TICKET>",
+      "http_status": 200,
+      "duration_ms": 71.0,
+      "body_bytes": 5616,
+      "error": null
+    },
+    {
+      "label": "detalle_1057420-45-L126",
+      "url": "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?codigo=1057420-45-L126&ticket=<TICKET>",
+      "http_status": 429,
+      "duration_ms": 136.9,
+      "body_bytes": null,
+      "error": "HTTPError: Too Many Requests"
+    },
+    {
+      "label": "detalle_1057430-80-LE26",
+      "url": "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?codigo=1057430-80-LE26&ticket=<TICKET>",
+      "http_status": 200,
+      "duration_ms": 247.7,
+      "body_bytes": 3472,
+      "error": null
+    },
+    {
+      "label": "detalle_retry_1057420-45-L126",
+      "url": "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json?codigo=1057420-45-L126&ticket=<TICKET>",
+      "http_status": 200,
+      "duration_ms": 370.3,
+      "body_bytes": null,
+      "error": null,
+      "note": "Reintento tras 429 en el primer intento, con 2s de espera."
+    },
+    {
+      "codigo": "1111089-20-LE26",
+      "status": 200,
+      "duration_ms": 152.3,
+      "error": null,
+      "label": "detalle_ti_1111089-20-LE26"
+    },
+    {
+      "codigo": "1153625-12-LE26",
+      "status": 200,
+      "duration_ms": 119.7,
+      "error": null,
+      "label": "detalle_ti_1153625-12-LE26"
+    },
+    {
+      "codigo": "1075337-59-LE26",
+      "status": 200,
+      "duration_ms": 63.8,
+      "error": null,
+      "label": "detalle_ti_1075337-59-LE26"
+    },
+    {
+      "codigo": "1107282-17-LE26",
+      "status": 200,
+      "duration_ms": 121.8,
+      "error": null,
+      "label": "detalle_ti_1107282-17-LE26"
+    },
+    {
+      "codigo": "1422051-31-LE26",
+      "status": 200,
+      "duration_ms": 80.2,
+      "error": null,
+      "label": "detalle_ti_1422051-31-LE26"
+    }
+  ],
+  "listado_encontrado": true,
+  "fecha_usada": "2026-11-20",
+  "licitaciones_en_listado": 1408,
+  "codigos_detalle": [
+    "1057384-176-L126",
+    "1057389-73-LP26",
+    "1057390-75-LE26",
+    "1057420-45-L126",
+    "1057430-80-LE26"
+  ],
+  "nota_seleccion_codigos": "El listado no trajo información de rubro por ítem (o no había TI ese día); se tomaron los primeros códigos disponibles del listado, sin filtro de rubro.",
+  "detalles_guardados": [
+    {
+      "codigo": "1057384-176-L126",
+      "archivo": "detalle_1057384-176-L126.json"
+    },
+    {
+      "codigo": "1057389-73-LP26",
+      "archivo": "detalle_1057389-73-LP26.json"
+    },
+    {
+      "codigo": "1057390-75-LE26",
+      "archivo": "detalle_1057390-75-LE26.json"
+    },
+    {
+      "codigo": "1057430-80-LE26",
+      "archivo": "detalle_1057430-80-LE26.json"
+    }
+  ],
+  "nota_rubro_ti": "La API no filtra por rubro en el listado por fecha. Se buscaron 5 códigos TI adicionales filtrando por palabras clave en Nombre (software, licencia, servidor, plataforma, etc.) y confirmando CodigoCategoria con prefijo 43 en el detalle."
+}

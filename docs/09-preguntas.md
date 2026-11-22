@@ -12,7 +12,7 @@ Estado: **RESPONDIDAS** el 21-11-2026. Se conserva el registro de pregunta, resp
 | 6 | ¿pdfplumber + Tesseract en vez de Docling? | Aprobado; Docling como plan B documentado. Exige pruebas de número de página y tablas. | ADR-0004, `05` E5-1, `07` `/p7` |
 | 7 | ¿Qué entra al Excel 1? | Sin puntaje mínimo duro: las 50 de mayor puntaje más todas con puntaje ≥ 40; ambos configurables. | `06` §1.0, `05` E3-1, E3-7 |
 | 8 | Filtros duros iniciales | Solo estado oficial Publicada y cierre a 3 días o más desde la corrida (configurable). Sin filtro de monto, región ni organismo. | `06` §1.0, `05` E2-10, `02` §2 |
-| 9 | Reglas de la Compuerta 1 | Motivo obligatorio en Descartar; responsable obligatorio en Descargar; Dudoso sin obligatorios. | `06` §1.1 y §1.4, `05` E3-3 |
+| 9 | Reglas de la Compuerta 1 | Motivo obligatorio en Descartar; responsable obligatorio en Descargar; Dudoso sin obligatorios. | `06` §1.1 y §1.6, `05` E3-3 |
 | 10 | Umbrales del semáforo | Aprobados como provisionales y configurables. | `06` §2.4 |
 
 Desvío adicional resuelto: **`bids` al detectar — NO aprobado.** El estado del embudo va en `opportunities`; `bids`
