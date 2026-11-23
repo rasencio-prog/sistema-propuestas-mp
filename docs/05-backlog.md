@@ -36,13 +36,14 @@ fechas en una licitación de Magallanes/Isla de Pascua (ninguna cayó en la mues
 
 ## E1 · Fundaciones (`/p3-fundaciones`) — MVP-1
 
-Estado: **CERRADO salvo E1-7** (23-11-2026). Puesto en marcha y probado contra el proyecto Supabase real
-`sistema-propuestas-dev` (no solo en CI): login, roles, configuración de líneas de servicio, auditoría y los tres
-procesos (API, worker, frontend) verificados a mano por el propietario. Dos correcciones de infraestructura
-encontradas en ese proceso quedan documentadas en ADR-0014 y ADR-0015. **E1-7 (ticket de API cifrado) queda
-pendiente**: el modelo de datos y el cifrado (Fernet) existen (tabla `api_credentials`, `core/crypto.py`), pero no
-hay endpoint para darlo de alta ni mostrar "configurado / últimos 4"; no era parte del alcance explícito pedido en
-`/p3-fundaciones` y se deja para antes de `/p4-radar` (que sí necesita el ticket para llamar a la API).
+Estado: **CERRADO** (23-11-2026, incluido E1-7 desde la segunda revisión de `/p4-radar`). Puesto en marcha y
+probado contra el proyecto Supabase real `sistema-propuestas-dev` (no solo en CI): login, roles, configuración de
+líneas de servicio, auditoría y los tres procesos (API, worker, frontend) verificados a mano por el propietario.
+Dos correcciones de infraestructura encontradas en ese proceso quedan documentadas en ADR-0014 y ADR-0015. **E1-7**
+(endpoint `POST/GET /api/config/mp-credential`, solo administrador para escribir, cualquier rol para ver
+enmascarado) se cerró despues: hasta entonces el radar dependía de la semilla de migración (ADR-0018); esa semilla
+sigue sirviendo de respaldo si no hay ninguna fila activa en la base (`MP_TICKET` del entorno, con aviso en el
+log), pero el camino normal de alta/rotación ya es el endpoint, no la migración.
 
 | ID | Historia | Criterios de aceptación | Est. | Dep. | Estado |
 | --- | --- | --- | --- | --- | --- |
@@ -52,7 +53,7 @@ hay endpoint para darlo de alta ni mostrar "configurado / últimos 4"; no era pa
 | E1-4 | Como administrador quiero las 5 líneas de servicio del brief precargadas y editables. | Semilla idempotente con nombre, descripción, palabras clave positivas y de exclusión (sección 2 del brief); rubros vacíos hasta /p2. | S | E1-3 | ✅ probado contra Supabase real |
 | E1-5 | Como usuario quiero iniciar sesión de forma segura. | Login con Supabase Auth; API rechaza JWT inválido/expirado (401); usuario sin membresía → 403. | M | E1-3 | ✅ `tests/unit/test_security.py`, `tests/integration/test_auth_flow.py`, y probado en el navegador |
 | E1-6 | Como administrador quiero roles. | administrador, comercial, revisor, solo lectura; matriz de permisos probada por ruta (solo lectura no puede modificar nada). | M | E1-5 | ✅ `tests/integration/test_config_routes_permissions.py` |
-| E1-7 | Como administrador quiero registrar el ticket de la API cifrado. | Ticket guardado con Fernet; nunca se devuelve por la API (solo "configurado / últimos 4"); cambio auditado. | S | E1-3 | ⏳ pendiente (ver nota arriba) |
+| E1-7 | Como administrador quiero registrar el ticket de la API cifrado. | Ticket guardado con Fernet; nunca se devuelve por la API (solo "configurado / últimos 4"); cambio auditado. | S | E1-3 | ✅ `tests/integration/test_credentials.py`, `tests/integration/test_credentials_routes_permissions.py`; sección en Configuración |
 | E1-8 | Como auditor quiero un registro de auditoría reutilizable. | `audit.record(...)` usado en login y cambios de configuración; la app no puede hacer UPDATE/DELETE en `audit_events`. | S | E1-3 | ✅ trigger bloquea UPDATE/DELETE para cualquier rol, no solo la app |
 | E1-9 | Como administrador quiero configurar líneas de servicio desde una página. | Página "Configuración" lista, crea, edita y desactiva líneas y palabras clave; cambios auditados. | M | E1-5, E1-4 | ✅ probado en el navegador (editar, activar/desactivar, recargar) |
 | E1-10 | Como equipo quiero CI. | GitHub Actions: ruff, mypy, pytest con Postgres, lint frontend; falla si hay secretos (gitleaks). | S | E1-1 | ✅ |
@@ -63,10 +64,12 @@ Estado: **CERRADO en lo funcional** (23-11-2026). Probado con una corrida real c
 `/p4-radar` en el historial de conversación): 5 candidatas capturadas (día domingo, baja actividad), 2 pasan los
 filtros duros, backoff ante un 429 real observado y resuelto, estado no documentado (`15`) manejado sin fallar.
 Hallazgo de la corrida real, documentado como addendum de ADR-0010: el listado se pide del día **anterior** al de
-la corrida, no el de "hoy" (a la hora de la ventana, "hoy" casi no tiene actividad todavía). Pendiente genuino:
-E1-7 (endpoint para administrar el ticket) sigue sin UI; el radar usa la fila de `api_credentials` sembrada por
-migración (ADR-0018) mientras tanto. La calidad de clasificación/fechas [17-MVP1-5]/[17-MVP1-6] se mide en `/p9`
-con el conjunto de evaluación, igual que para Excel 1.
+la corrida, no el de "hoy" (a la hora de la ventana, "hoy" casi no tiene actividad todavía). Segunda revisión
+(23-11-2026, mismo día): el puntaje de afinidad pasó de factor ponderado a condición (ADR-0017 addendum, techo
+configurable sin coincidencia de rubro), la fuente principal del listado pasó de "por fecha" a `estado=activas`
+(ADR-0010 addendum 2, no depende de que el backend haya estado encendido una noche en particular, y sirve de carga
+inicial) y se cerró E1-7 (endpoint de ticket). La calidad de clasificación/fechas [17-MVP1-5]/[17-MVP1-6] se mide
+en `/p9` con el conjunto de evaluación, igual que para Excel 1.
 
 | ID | Historia | Criterios de aceptación | Est. | Dep. | Estado |
 | --- | --- | --- | --- | --- | --- |

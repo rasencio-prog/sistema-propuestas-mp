@@ -375,6 +375,18 @@ def passes_hard_filters(
     return (close_date - run_date).days >= min_days_to_close
 
 
+def list_published_codes_missing_from_active_listing(db: Session, *, present_codes: set[str]) -> list[str]:
+    """ADR-0010 addendum 2: `estado=activas` solo trae `CodigoEstado=5`, nunca el resto -- una
+    licitacion conocida que dejo de estar Publicada simplemente desaparece del listado, no aparece
+    con otro codigo. Estos son los candidatos a volver a detallar para aprender su estado real."""
+    stmt = select(Opportunity.official_code).where(
+        Opportunity.source == SOURCE, Opportunity.official_status_code == PUBLISHED_STATUS_CODE
+    )
+    if present_codes:
+        stmt = stmt.where(Opportunity.official_code.not_in(present_codes))
+    return list(db.scalars(stmt))
+
+
 def list_eligible_for_batch(db: Session) -> list[Opportunity]:
     """Universo del Excel 1 (docs/06 S1.0, antes de filtros duros y seleccion): detectadas o
     preseleccionadas (estas ultimas sin decision vigente de descarte/descarga)."""

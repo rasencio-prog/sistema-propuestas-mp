@@ -31,7 +31,7 @@ extensión), `.xml`, `.jsonp` (con `callback`). El ticket va siempre como parám
 | Listado de licitaciones publicadas/cerradas/etc. en una fecha | `GET licitaciones.json?fecha=20112026&ticket=<TICKET>` | Sí, probado (1.408 resultados) |
 | Detalle de una licitación por código | `GET licitaciones.json?codigo=1057389-73-LP26&ticket=<TICKET>` | Sí, probado (10 códigos) |
 | Listado filtrado por estado (y opcionalmente fecha) | `GET licitaciones.json?fecha=20112026&estado=adjudicada&ticket=<TICKET>` | Documentado en la página oficial; **no probado** en esta corrida (no era necesario para la muestra) |
-| "Activas" (publicadas a la fecha de hoy) | `GET licitaciones.json?estado=activas&ticket=<TICKET>` | Documentado; no probado |
+| "Activas" (publicadas a la fecha de hoy) | `GET licitaciones.json?estado=activas&ticket=<TICKET>` | Sí, probado (23-11-2026, ver §13) |
 | Listado por organismo o proveedor | `GET licitaciones.json?fecha=...&CodigoOrganismo=<cod>&ticket=<TICKET>` / `...&CodigoProveedor=<cod>&ticket=<TICKET>` | Documentado; no probado |
 | Buscar código de proveedor por RUT | `GET Empresas/BuscarProveedor?rutempresaproveedor=<RUT>&ticket=<TICKET>` | Documentado; no probado (no se necesita para MVP-1) |
 | Buscar organismos | `GET Empresas/BuscarComprador?ticket=<TICKET>` | Documentado; no probado |
@@ -410,3 +410,25 @@ columna "Resumen IA" del Excel 1 (modelo, caché, presupuesto) está en
   minúscula o con prefijo OCID) devolvió resultados (§10). No bloqueante: ninguna historia de MVP-1/MVP-2 depende de
   esta API.
 - Significado exacto de `TipoPago="-1"`, observado en una muestra y no documentado en la tabla 3.4 del manual (§2.4).
+
+## 13. `estado=activas` — validación con ticket real (/p4-radar, segunda revisión, 23-11-2026)
+
+Motivación: el radar corre en el equipo del propietario (ADR-0008), que puede estar apagado alguna
+noche; el listado por `fecha` no se recupera sola de un día saltado (ADR-0010 addendum 2). Se
+confirmó el comportamiento real de `GET licitaciones.json?estado=activas&ticket=<TICKET>` con una
+consulta (`scripts/explore_mp_api.py --check-activas`, resultado saneado en
+`docs/api-samples/listado_activas_muestra.json`, primeros 20 de 5.194 elementos):
+
+- **5.194 licitaciones** devueltas en una sola llamada (≈ 432 ms).
+- **Mismos 4 campos livianos** que el listado por `fecha` (§2.1): `CodigoExterno`, `Nombre`,
+  `CodigoEstado`, `FechaCierre`. Ningún campo adicional (sin comprador, monto ni ítems, igual que el
+  listado por fecha — sigue haciendo falta el detalle por `codigo`).
+- **`CodigoEstado` fue `5` (Publicada) en las 5.194 licitaciones, sin una sola excepción.** Confirma
+  la hipótesis de diseño: "activas" es estrictamente el subconjunto Publicada vigente a la fecha de
+  la consulta, nunca un estado en transición. Impacto en el diseño (ADR-0010 addendum 2): una
+  licitación conocida que deja de estar Publicada **desaparece** de este listado en la corrida
+  siguiente, no aparece con su nuevo `CodigoEstado` — el radar debe notar la ausencia y pedir su
+  detalle aparte para aprender el estado real.
+- No se probó (no hace falta para el diseño actual): si `estado=activas` admite combinarse con
+  `fecha` u otros filtros (`CodigoOrganismo`, `CodigoProveedor`); la página oficial no lo documenta
+  para este parámetro.

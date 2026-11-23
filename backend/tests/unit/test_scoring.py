@@ -59,6 +59,55 @@ def test_no_service_line_match_scores_zero_on_that_factor() -> None:
     assert breakdown["factors"]["service_line_affinity"] == 0.0
 
 
+def test_no_service_line_match_caps_final_score_regardless_of_other_factors() -> None:
+    """ADR-0017 addendum: sin afinidad con ninguna linea, el puntaje queda acotado aunque monto,
+    plazo y los demas factores sean ideales (antes de este ajuste podia dar ~46 puntos, ver el caso
+    real de Putaendo abajo)."""
+    score, breakdown = _compute(
+        best_service_line_confidence=None,
+        offers_close_utc=AS_OF + timedelta(days=30),  # viabilidad temporal maxima
+        estimated_amount=50_000_000,  # dentro del rango atractivo
+        amount_visibility="visible",
+        contract_duration_value=12,
+        contract_duration_unit_code=4,  # dentro del rango ideal
+        buyer_complaints_count_snapshot=0,  # riesgo minimo
+    )
+    assert score <= 15
+    assert breakdown["capped_no_affinity"] is True
+
+
+def test_putaendo_biblioteca_case_without_affinity_stays_low() -> None:
+    """Caso real (corrida del 23-11-2026): dos licitaciones de inspeccion/asesoria tecnica para la
+    construccion de una biblioteca publica (Putaendo) sin coincidencia con ninguna linea de servicio
+    TI, pero con monto visible atractivo y cierre a 10 dias. Antes del ajuste sacaban 46.13 puntos;
+    ahora deben quedar acotadas al techo configurable."""
+    score, breakdown = _compute(
+        best_service_line_confidence=None,
+        offers_close_utc=AS_OF + timedelta(days=10),
+        estimated_amount=20_300_000,
+        amount_visibility="visible",
+        contract_duration_value=None,
+        contract_duration_unit_code=None,
+        buyer_complaints_count_snapshot=None,
+    )
+    assert score <= 15
+    assert breakdown["capped_no_affinity"] is True
+
+
+def test_custom_no_affinity_cap_threshold_is_respected() -> None:
+    score, breakdown = _compute(
+        best_service_line_confidence=None,
+        thresholds={"no_affinity_score_cap": 5},
+    )
+    assert score <= 5
+    assert breakdown["capped_no_affinity"] is True
+
+
+def test_affinity_match_is_never_capped() -> None:
+    _, breakdown = _compute(best_service_line_confidence=0.9)
+    assert breakdown["capped_no_affinity"] is False
+
+
 def test_amount_not_visible_uses_neutral_default() -> None:
     _, breakdown = _compute(amount_visibility="not_visible", estimated_amount=None)
     assert breakdown["factors"]["economic_attractiveness"] == 50

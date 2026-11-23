@@ -46,3 +46,25 @@ puntaje (docs/05 E2-7).
 - Si en `/p9-evals` el puntaje no correlaciona bien con las decisiones reales del propietario, se
   ajustan pesos/umbrales o se agregan factores, sin tocar el resto del dominio (la formula vive solo
   en `modules/scoring/service.py`).
+
+## Addendum (23-11-2026): la afinidad de linea de servicio es una condicion, no solo un factor
+
+La primera corrida real (`/p4-radar`) mostro el problema del promedio ponderado puro: dos
+licitaciones de Putaendo (inspeccion tecnica y asesoria para la construccion de una biblioteca
+publica, sin ninguna coincidencia con las lineas de servicio TI configuradas) sacaron **46.13
+puntos**, solo porque el monto era atractivo y el plazo viable compensaban un `service_line_affinity`
+en 0 dentro del promedio ponderado (peso 40 %, pero los otros 60 % igual sumaban lo suficiente). Un
+puntaje así de alto en un rubro completamente fuera de lo que la empresa hace es enganoso para quien
+revisa el Excel 1.
+
+**Decision**: despues de calcular el promedio ponderado normal, si `best_service_line_confidence` es
+`None` (ninguna linea activa coincidio, `classify_by_rules`/el LLM no devolvieron matches), el
+puntaje final se acota a un techo configurable `thresholds.no_affinity_score_cap` (default **15**),
+sin importar que tan bien puntuen los demas factores. Si el puntaje ponderado ya era menor al techo,
+no se toca (el techo nunca sube un puntaje, solo lo baja). Se guarda `breakdown.capped_no_affinity`
+(booleano) para que quede explicito en `opportunities.score_breakdown` cuando se aplico el recorte,
+sin perder el detalle de los factores originales.
+
+Umbral configurable por perfil (`scoring_profiles.thresholds.no_affinity_score_cap`, migracion
+`0005_no_affinity_score_cap` fusiona la clave en los perfiles ya sembrados sin pisar si un
+administrador ya la edito a mano).

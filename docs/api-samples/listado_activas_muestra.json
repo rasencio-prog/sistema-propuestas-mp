@@ -1,0 +1,124 @@
+{
+  "Listado": [
+    {
+      "CodigoExterno": "1000-27-LP26",
+      "Nombre": "SERV. DE ASEO INSTALACIONES VIALIDAD PROV. BIOBÍO.",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-12-07T15:00:00"
+    },
+    {
+      "CodigoExterno": "1000813-20-LE26",
+      "Nombre": "CONTRATACIÓN SERVICIO DE CAFETERIA Y ALIMENTACION",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-11-30T15:00:00"
+    },
+    {
+      "CodigoExterno": "1001-20-LP26",
+      "Nombre": "SERVICIO MANTENCION Y REP. MAQ.PESADA MULTIMARCA",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-11-26T15:00:00"
+    },
+    {
+      "CodigoExterno": "1001-21-LP26",
+      "Nombre": "SERVICIO DE VIGILANCIA R.FISCAL TALLER MAQUINARIAS",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-11-26T15:00:00"
+    },
+    {
+      "CodigoExterno": "1001-24-LE26",
+      "Nombre": "SERVICIO MANTENCION Y REP. VEH.LIVIANOS MULTIMARCA",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-11-30T15:00:00"
+    },
+    {
+      "CodigoExterno": "1002-100-LE26",
+      "Nombre": "Servicio de Conservación galpón recinto fiscal acceso Chaitén sur de la Dirección de Vialidad Provincia de Palena región de los Lagos",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-11-23T15:01:00"
+    },
+    {
+      "CodigoExterno": "1002-101-LP26",
+      "Nombre": "Suministro de Mezcla Asfáltica en Caliente para colocación de capa de protección Camino Cruce Ruta 5 Huicha La Cumbre  Provincia de Chiloe.",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-12-10T16:00:00"
+    },
+    {
+      "CodigoExterno": "1002-102-LP26",
+      "Nombre": "CONVENIO DE MANTENCION Y REPARACION MAQUINARIA MARCA CATERPILLAR ",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-12-10T15:00:00"
+    },
+    {
+      "CodigoExterno": "1002-103-LP26",
+      "Nombre": "CONVENIO DE MANTENCION Y REPARACION PARA GRUAS MARCA PALFINGER",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-12-10T16:00:00"
+    },
+    {
+      "CodigoExterno": "1002584-15-LR26",
+      "Nombre": "EQUIPAMIENTO PARA ESCUELA FRIDOLINA BARRIENTOS",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-12-17T17:00:00"
+    },
+    {
+      "CodigoExterno": "1002772-117-LR26",
+      "Nombre": "SUMINISTRO INSUMOS PARA EL EQUIPO DE NEUROCIRUGIA",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-11-23T16:30:00"
+    },
+    {
+      "CodigoExterno": "1002772-122-LP26",
+      "Nombre": "INSUMOS PARA ARTROSCOPIA DE RODILLA",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-11-30T17:00:00"
+    },
+    {
+      "CodigoExterno": "1002772-123-LP26",
+      "Nombre": "SUMINISTRO PINZA BIPOLAR BYONETA CON CABLE ANTIADH",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-11-23T16:00:00"
+    },
+    {
+      "CodigoExterno": "1002772-125-LP26",
+      "Nombre": "SUMINISTRO RETRACTORES LAPAROSCOPICOS ABDOMINALES",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-11-24T16:00:00"
+    },
+    {
+      "CodigoExterno": "1002772-126-LE26",
+      "Nombre": "SUMINISTRO DE CANULAS TRAQUEOSTOMIAS PEDIATRICAS",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-11-26T16:00:00"
+    },
+    {
+      "CodigoExterno": "1002772-127-LE26",
+      "Nombre": "KIT ASPIRACIÓN MANUAL ENDOUTERINA",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-11-25T16:50:00"
+    },
+    {
+      "CodigoExterno": "1002772-128-LP26",
+      "Nombre": "SISTEMA PRESION NEGATIVA ABDOMINAL",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-12-01T17:00:00"
+    },
+    {
+      "CodigoExterno": "1002772-129-LP26",
+      "Nombre": "CONVENIO DE SUMINISTRO DE ACIDOS GRASOS",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-12-02T16:00:00"
+    },
+    {
+      "CodigoExterno": "1002772-130-LP26",
+      "Nombre": "SUMINISTRO TUBO DE SILICONA ESTERIL CON CONECTORES",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-12-02T16:30:00"
+    },
+    {
+      "CodigoExterno": "1002772-131-LE26",
+      "Nombre": "INSUMOSCOMPATIBLES CON EQUIPO ROTEM SIGMA",
+      "CodigoEstado": 5,
+      "FechaCierre": "2026-12-07T17:00:00"
+    }
+  ]
+}

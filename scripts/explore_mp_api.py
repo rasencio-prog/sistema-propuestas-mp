@@ -225,6 +225,37 @@ def check_ocds(codes: list[str], ritmo_segundos: float) -> list[dict[str, Any]]:
     return results
 
 
+def check_activas(ticket: str) -> dict[str, Any]:
+    """Confirma el comportamiento real de `estado=activas` (docs/10 S1, /p4-radar segunda revision):
+    si trae los mismos 4 campos livianos que el listado por fecha, y si incluye solo CodigoEstado=5
+    (Publicada) o tambien otros estados en transicion. No descarga nada de mercadopublico.cl."""
+    record, data = call_api({"estado": "activas"}, ticket, "listado_activas")
+    listado = (data or {}).get("Listado") or []
+    status_counts: dict[str, int] = {}
+    field_sets: set[str] = set()
+    for lic in listado:
+        if isinstance(lic, dict):
+            status_counts[str(lic.get("CodigoEstado"))] = status_counts.get(str(lic.get("CodigoEstado")), 0) + 1
+            field_sets.update(lic.keys())
+
+    sanitized = sanitize({"Listado": listado[:20]}, ticket)  # muestra acotada, no las ~500+ completas
+    out_path = SAMPLES_DIR / "listado_activas_muestra.json"
+    out_path.write_text(json.dumps(sanitized, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    summary = {
+        "http_status": record.http_status,
+        "duration_ms": record.duration_ms,
+        "error": record.error,
+        "cantidad_total": len(listado),
+        "campos_observados": sorted(field_sets),
+        "distribucion_codigo_estado": status_counts,
+        "muestra_guardada_en": out_path.name,
+    }
+    print("Verificacion estado=activas:")
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return summary
+
+
 def find_listing_with_data(
     ticket: str, start_date: date, max_attempts: int, ritmo_segundos: float
 ) -> tuple[ApiCallRecord, list[dict[str, Any]], date]:
@@ -268,6 +299,11 @@ def main() -> int:
         action="store_true",
         help="Además, consulta la API OCDS pública (sin ticket) para 3 de los códigos ya muestreados.",
     )
+    parser.add_argument(
+        "--check-activas",
+        action="store_true",
+        help="Solo confirma el comportamiento de licitaciones.json?estado=activas y termina (sin tocar el listado por fecha).",
+    )
     args = parser.parse_args()
     ritmo_segundos = args.ritmo_segundos
 
@@ -285,6 +321,10 @@ def main() -> int:
         start_date = date.today() - timedelta(days=1)
 
     SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
+
+    if args.check_activas:
+        check_activas(ticket)
+        return 0
 
     calls: list[ApiCallRecord] = []
     listado: list[dict[str, Any]] = []

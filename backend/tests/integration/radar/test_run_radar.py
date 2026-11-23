@@ -72,8 +72,17 @@ def _detail_payload(**overrides) -> dict:
 
 
 def _run(
-    db_session, radar_fixture, *, daily_limit: int | None = None, radar_date: date | None = None, **kwargs
+    db_session,
+    radar_fixture,
+    *,
+    daily_limit: int | None = None,
+    radar_date: date | None = None,
+    listing_source: str = "fecha",
+    **kwargs,
 ):
+    # Las pruebas de este archivo mockean `fecha=19112026` explicitamente (ver RUN_MOMENT arriba):
+    # fuerzan `listing_source="fecha"` para no depender del default real ("activas", ADR-0010
+    # addendum 2), que tiene sus propias pruebas dedicadas mas abajo.
     credential = radar_fixture["credential"]
     if daily_limit is not None:
         credential.daily_limit = daily_limit
@@ -93,6 +102,7 @@ def _run(
         sleep=lambda _seconds: None,
         now=lambda: RUN_MOMENT,
         radar_date=radar_date,
+        listing_source=listing_source,
         **kwargs,
     )
 
@@ -374,3 +384,167 @@ def test_radar_run_date_is_bookkeeping_but_listing_queries_the_previous_day(
     assert listing_route.called
     run = db_session.get(RadarRun, outcome.run_id)
     assert run.radar_date == date(2026, 11, 20)
+
+
+# --- Estrategia de listado "activas" (ADR-0010 addendum 2, /p4-radar segunda revision) ---
+# Confirmado contra la API real (23-11-2026): `estado=activas` trae los mismos 4 campos livianos que
+# el listado por fecha, siempre con `CodigoEstado=5`. Es la fuente principal por defecto (no requiere
+# que el backend haya estado encendido un dia en particular) y tambien sirve de carga inicial.
+
+
+def _run_default_source(db_session, radar_fixture, *, daily_limit: int | None = None, **kwargs):
+    """Igual que `_run`, pero sin forzar `listing_source`: confirma el default real de produccion."""
+    credential = radar_fixture["credential"]
+    if daily_limit is not None:
+        credential.daily_limit = daily_limit
+        db_session.flush()
+    return run_radar(
+        db_session,
+        organization_id=radar_fixture["organization"].id,
+        credential_id=credential.id,
+        ticket=FAKE_TICKET,
+        daily_limit=credential.daily_limit,
+        scoring_profile=radar_fixture["scoring_profile"],
+        service_lines=[radar_fixture["service_line"]],
+        trigger="manual",
+        rate_limit_seconds=0,
+        max_retries=1,
+        backoff_base_seconds=0,
+        sleep=lambda _seconds: None,
+        now=lambda: RUN_MOMENT,
+        **kwargs,
+    )
+
+
+@respx.mock
+def test_default_listing_source_is_activas(db_session, radar_fixture) -> None:
+    route = respx.get(BASE_URL, params={"estado": "activas"}).mock(
+        return_value=httpx.Response(
+            200,
+            json=_listing_payload(
+                [
+                    {
+                        "CodigoExterno": "1-1-LE26",
+                        "Nombre": "x",
+                        "CodigoEstado": 5,
+                        "FechaCierre": "2026-12-10T16:00:00",
+                    }
+                ]
+            ),
+        )
+    )
+    respx.get(BASE_URL, params={"codigo": "1-1-LE26"}).mock(
+        return_value=httpx.Response(200, json=_detail_payload())
+    )
+
+    outcome = _run_default_source(db_session, radar_fixture)
+
+    assert route.called
+    assert outcome.status == "succeeded"
+    assert outcome.new_count == 1
+
+
+@respx.mock
+def test_opportunity_disappearing_from_activas_is_redetailed_and_closed_without_decision(
+    db_session, radar_fixture
+) -> None:
+    """`estado=activas` nunca trae un `CodigoEstado` distinto de 5: una licitacion conocida que deja
+    de estar Publicada simplemente desaparece del listado, no aparece con otro estado. El radar debe
+    notar la ausencia y pedir su detalle para aprender el estado real (ADR-0010 addendum 2)."""
+    respx.get(BASE_URL, params={"estado": "activas"}).mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                json=_listing_payload(
+                    [
+                        {
+                            "CodigoExterno": "1-1-LE26",
+                            "Nombre": "x",
+                            "CodigoEstado": 5,
+                            "FechaCierre": "2026-12-10T16:00:00",
+                        },
+                        {
+                            "CodigoExterno": "2-1-LE26",
+                            "Nombre": "y",
+                            "CodigoEstado": 5,
+                            "FechaCierre": "2026-12-10T16:00:00",
+                        },
+                    ]
+                ),
+            ),
+            httpx.Response(
+                200,
+                json=_listing_payload(
+                    [
+                        {
+                            "CodigoExterno": "2-1-LE26",
+                            "Nombre": "y",
+                            "CodigoEstado": 5,
+                            "FechaCierre": "2026-12-10T16:00:00",
+                        }
+                    ]
+                ),
+            ),
+        ]
+    )
+    respx.get(BASE_URL, params={"codigo": "1-1-LE26"}).mock(
+        side_effect=[
+            httpx.Response(200, json=_detail_payload(CodigoExterno="1-1-LE26")),
+            httpx.Response(
+                200, json=_detail_payload(CodigoExterno="1-1-LE26", CodigoEstado=7, Estado="Desierta")
+            ),
+        ]
+    )
+    respx.get(BASE_URL, params={"codigo": "2-1-LE26"}).mock(
+        return_value=httpx.Response(200, json=_detail_payload(CodigoExterno="2-1-LE26"))
+    )
+
+    _run(db_session, radar_fixture, listing_source="activas")
+    second_outcome = _run(db_session, radar_fixture, listing_source="activas")
+
+    # El segundo run cae el mismo `radar_date` que el primero (mismo RUN_MOMENT): el guard de
+    # "ya existe una corrida succeeded hoy" (ADR-0007) lo baja a 'partial' con esa unica nota, sin
+    # relacion con la logica de "desaparecio de activas" que esta prueba ejercita.
+    assert second_outcome.errors == [{"stage": "finalize", "error": "ya_existe_corrida_succeeded_hoy"}]
+    assert second_outcome.updated_count == 1  # solo 1-1-LE26 desaparecio y se volvio a detallar
+    assert second_outcome.detailed_count == 1  # 2-1-LE26 sin cambios: no se vuelve a detallar
+
+    disappeared = db_session.scalars(select(Opportunity).where(Opportunity.official_code == "1-1-LE26")).one()
+    assert disappeared.official_status_code == 7
+    assert disappeared.official_status_text == "Desierta"
+    # ADR-0006: sin decision de la Compuerta 1, el estado interno pasa a 'cerrada_sin_decision'.
+    assert disappeared.internal_status == "cerrada_sin_decision"
+
+    still_active = db_session.scalars(
+        select(Opportunity).where(Opportunity.official_code == "2-1-LE26")
+    ).one()
+    assert still_active.official_status_code == 5
+    assert still_active.internal_status == "detectada"
+
+
+@respx.mock
+def test_quota_exceeded_while_redetailing_disappeared_opportunity_marks_run_partial(
+    db_session, radar_fixture
+) -> None:
+    respx.get(BASE_URL, params={"estado": "activas"}).mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                json=_listing_payload(
+                    [{"CodigoExterno": "1-1-LE26", "Nombre": "x", "CodigoEstado": 5, "FechaCierre": None}]
+                ),
+            ),
+            httpx.Response(200, json=_listing_payload([])),  # desaparecio del listado
+        ]
+    )
+    respx.get(BASE_URL, params={"codigo": "1-1-LE26"}).mock(
+        return_value=httpx.Response(200, json=_detail_payload(CodigoExterno="1-1-LE26"))
+    )
+
+    _run(db_session, radar_fixture, listing_source="activas")  # consume 2 (listado + detalle nuevo)
+    # El segundo listado (vacio) consume 1 mas -> 3 de 3; no queda cuota para re-detallar la que
+    # desaparecio.
+    outcome = _run(db_session, radar_fixture, listing_source="activas", daily_limit=3)
+
+    assert outcome.status == "partial"
+    assert any(err.get("stage") == "detail_disappeared" for err in outcome.errors)

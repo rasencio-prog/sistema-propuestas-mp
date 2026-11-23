@@ -78,6 +78,15 @@ class MpV1Client:
         parsed = RawListingResponse.model_validate(data)
         return [map_listing_entry(entry) for entry in parsed.Listado]
 
+    def fetch_active_listing(self) -> list[CanonicalListingEntry]:
+        """`estado=activas` (docs/10 S1, confirmado con una consulta real el 23-11-2026): mismos 4
+        campos livianos que el listado por fecha, siempre `CodigoEstado=5` (Publicada) — no sirve
+        para detectar que una licitacion conocida dejo de estar Publicada (ver ADR-0010 addendum 2,
+        que maneja esa ausencia por separado en `modules/radar/service.py`)."""
+        data = self._request("listado_activas", {"estado": "activas"})
+        parsed = RawListingResponse.model_validate(data)
+        return [map_listing_entry(entry) for entry in parsed.Listado]
+
     def fetch_detail(self, official_code: str) -> CanonicalOpportunityDetail:
         data = self._request("detalle", {"codigo": official_code})
         listado = data.get("Listado") or []

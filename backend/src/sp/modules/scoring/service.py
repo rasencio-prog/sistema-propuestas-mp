@@ -44,6 +44,10 @@ DEFAULT_THRESHOLDS: dict[str, Any] = {
     "risk_complaints_low": 0,
     "risk_complaints_high": 500,
     "risk_default_when_unknown": 50,
+    # Afinidad como condicion, no solo como factor ponderado (ADR-0017 addendum, 23-11-2026): sin
+    # coincidencia con ninguna linea de servicio activa, el puntaje final queda acotado a este techo
+    # sin importar monto ni plazo (evita puntajes moderados/altos en rubros fuera de la empresa).
+    "no_affinity_score_cap": 15,
 }
 
 # Tabla 3.6 del manual (docs/03): UnidadTiempoDuracionContrato -> meses por unidad.
@@ -170,9 +174,17 @@ def compute_score(
     weighted_sum = sum(factor_scores[name] * weights.get(name, 0.0) for name in factor_scores)
     score = round(_clamp(weighted_sum / total_weight), 2)
 
+    # Afinidad como condicion (ADR-0017 addendum): sin coincidencia con ninguna linea de servicio
+    # activa, el puntaje final nunca supera el techo configurable, sin importar monto ni plazo.
+    no_affinity_cap = float(thresholds.get("no_affinity_score_cap", 15))
+    capped = best_service_line_confidence is None and score > no_affinity_cap
+    if capped:
+        score = round(no_affinity_cap, 2)
+
     breakdown = {
         "factors": factor_scores,
         "weights": {name: weights.get(name, 0.0) for name in factor_scores},
         "days_to_close": days_to_close(offers_close_utc, as_of_utc),
+        "capped_no_affinity": capped,
     }
     return score, breakdown

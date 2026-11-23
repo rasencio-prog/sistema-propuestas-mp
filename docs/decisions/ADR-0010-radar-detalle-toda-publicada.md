@@ -80,3 +80,37 @@ no el de ese mismo día.
 ADR-0007, que no cambia); el día que se le pide a la API es un concepto separado (`listing_date` en
 `modules/radar/service.py`), por defecto `radar_date - 1 día`, pero configurable si alguna vez hiciera
 falta reprocesar un día especifico a mano.
+
+## Addendum 2 (`/p4-radar`, segunda revisión, 23-11-2026): fuente principal = `estado=activas`
+
+El backend corre en el equipo del propietario (ADR-0008), que puede estar apagado alguna noche. Con
+el listado por `fecha`, una corrida que no se ejecuta un día no se recupera sola: el día siguiente
+pide el listado de "ayer" (el día que sí se perdió), no el que faltó. Se cambia la fuente principal a
+`GET licitaciones.json?estado=activas&ticket=...` (docs/10 §1): el universo completo de licitaciones
+Publicada vigentes **a la fecha de la consulta**, sin importar cuándo se publicaron. Confirmado con
+una consulta real el 23-11-2026 (docs/10, nueva sección): 5.194 licitaciones, los mismos 4 campos
+livianos del listado por fecha (`CodigoExterno`, `Nombre`, `CodigoEstado`, `FechaCierre`), **siempre**
+con `CodigoEstado=5`.
+
+**Decisión**:
+
+1. `listing_source` (configurable, `organizations.settings` clave `radar.listing_source`) por defecto
+   `"activas"`; `"fecha"` sigue disponible como opción. El dedupe por código oficial no cambia: nuevo
+   -> detalle completo; conocido con `FechaCierre` distinto -> vuelve a detalle; conocido sin cambios
+   -> solo actualiza desde el listado, sin gastar cuota.
+2. Como `activas` siempre trae el mismo universo vigente (no un recorte de "un día"), también sirve
+   de **carga inicial**: si la cuota se agota a mitad de camino, la corrida queda "parcial" (sin
+   cambios respecto del diseño original) y la corrida siguiente retoma donde quedó, porque las
+   mismas licitaciones pendientes siguen apareciendo en `activas` hasta que dejen de estar Publicada.
+3. **Contrapartida que no tiene el listado por fecha**: como `activas` nunca muestra un `CodigoEstado`
+   distinto de 5, una licitación conocida que deja de estar Publicada (cerrada, desierta, adjudicada,
+   revocada, suspendida) **desaparece del listado** en vez de aparecer con su nuevo estado. Sin
+   manejar esto, quedaría marcada Publicada/`detectada` para siempre y nunca pasaría a
+   `cerrada_sin_decision` (ADR-0006) cuando corresponde. El radar calcula, en cada corrida con
+   `listing_source="activas"`, qué códigos conocidos siguen marcados Publicada en la base pero ya no
+   aparecen en el listado fresco, y pide su detalle (mismo mecanismo de cuota/ritmo/backoff que
+   cualquier otro detalle) para aprender el estado real antes de aplicar `recompute_internal_status`.
+   Esto no hace falta con `listing_source="fecha"`: ese listado ya trae licitaciones en cualquier
+   estado el día que cambian (docs/10 §2.3).
+4. El listado por fecha sigue siendo la opción a usar si alguna vez hace falta reprocesar un día
+   calendario específico a mano (p. ej. para auditar qué pasó un día puntual).

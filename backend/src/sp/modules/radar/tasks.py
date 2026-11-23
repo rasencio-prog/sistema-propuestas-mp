@@ -16,11 +16,13 @@ from sp.core.db import get_session_factory
 from sp.core.logging import get_logger
 from sp.core.timezones import chile_calendar_date, chile_now
 from sp.jobs.app import app
-from sp.modules.organizations.models import ApiCredential, Organization
+from sp.modules.organizations import credentials as credentials_service
+from sp.modules.organizations.models import Organization
 from sp.modules.organizations.settings import get_org_setting
 from sp.modules.radar.models import RadarRun
 from sp.modules.radar.service import (
     DEFAULT_BACKOFF_BASE_SECONDS,
+    DEFAULT_LISTING_SOURCE,
     DEFAULT_MAX_RETRIES,
     DEFAULT_RATE_LIMIT_SECONDS,
     RadarRunOutcome,
@@ -50,15 +52,6 @@ def _get_default_organization(db: Session) -> Organization | None:
     ).first()
 
 
-def _get_active_credential(db: Session, organization_id: uuid.UUID) -> ApiCredential | None:
-    stmt = select(ApiCredential).where(
-        ApiCredential.organization_id == organization_id,
-        ApiCredential.provider == "mercado_publico",
-        ApiCredential.is_active,
-    )
-    return db.scalars(stmt).one_or_none()
-
-
 def _get_active_scoring_profile(db: Session, organization_id: uuid.UUID) -> ScoringProfile | None:
     stmt = select(ScoringProfile).where(
         ScoringProfile.organization_id == organization_id, ScoringProfile.is_active
@@ -73,11 +66,11 @@ def run_radar_for_organization(db: Session, *, trigger: str) -> RadarRunOutcome:
     if organization is None:
         raise RuntimeError("No hay organizacion configurada; no se puede correr el radar.")
 
-    credential = _get_active_credential(db, organization.id)
+    credential = credentials_service.get_or_bootstrap_active_credential(db, organization.id)
     if credential is None:
         raise RuntimeError(
-            "No hay credencial activa de Mercado Publico (api_credentials); configurela antes "
-            "de correr el radar (E1-7)."
+            "No hay credencial activa de Mercado Publico (api_credentials) ni MP_TICKET en el "
+            "entorno; configure el ticket en Configuracion antes de correr el radar (E1-7)."
         )
 
     scoring_profile = _get_active_scoring_profile(db, organization.id)
@@ -96,6 +89,7 @@ def run_radar_for_organization(db: Session, *, trigger: str) -> RadarRunOutcome:
         scoring_profile=scoring_profile,
         service_lines=service_lines,
         trigger=trigger,
+        listing_source=get_org_setting(organization, "radar.listing_source", DEFAULT_LISTING_SOURCE),
         rate_limit_seconds=get_org_setting(
             organization, "radar.rate_limit_seconds", DEFAULT_RATE_LIMIT_SECONDS
         ),

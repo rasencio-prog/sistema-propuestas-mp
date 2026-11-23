@@ -54,6 +54,26 @@ def test_fetch_listing_success_no_retry() -> None:
 
 
 @respx.mock
+def test_fetch_active_listing_uses_estado_activas_param() -> None:
+    route = respx.get(BASE_URL, params={"estado": "activas"}).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "Cantidad": 1,
+                "Listado": [
+                    {"CodigoExterno": "1-1-LE26", "Nombre": "x", "CodigoEstado": 5, "FechaCierre": None}
+                ],
+            },
+        )
+    )
+    client, before, after, _sleeps = _make_client()
+    entries = client.fetch_active_listing()
+    assert route.called
+    assert len(entries) == 1
+    assert before == ["listado_activas"]
+
+
+@respx.mock
 def test_retries_with_exponential_backoff_on_429() -> None:
     route = respx.get(BASE_URL)
     route.side_effect = [

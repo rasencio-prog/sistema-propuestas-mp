@@ -4,6 +4,22 @@ Estrategia de detalle (ADR-0010): se pide el detalle completo de todo codigo nue
 Publicada y de todo codigo conocido cuyo `CodigoEstado`/`FechaCierre` cambio en el listado; el resto
 solo actualiza el estado oficial desde el listado, sin gastar cuota.
 
+Fuente del listado (ADR-0010 addendum 2, `listing_source`, configurable): por defecto `"activas"`
+(`estado=activas`, el universo completo de licitaciones Publicada vigentes a la fecha de la
+consulta) en vez de `"fecha"` (el dia calendario anterior). Esto hace que el radar no dependa de que
+el backend (en el equipo del propietario, ADR-0008) haya estado encendido todas las noches: sirve
+tanto de carga inicial (si la cuota se agota a mitad de camino, la corrida queda "parcial" y la
+siguiente retoma donde quedo, porque las mismas licitaciones siguen apareciendo en `activas` hasta
+que dejen de estar Publicada) como de corrida diaria normal. Contrapartida confirmada contra la API
+real (23-11-2026): `estado=activas` trae siempre `CodigoEstado=5`, nunca otro valor -- una
+licitacion conocida que dejo de estar Publicada simplemente desaparece del listado en vez de
+aparecer con un codigo distinto. Por eso, cuando `listing_source="activas"`, el radar ademas pide el
+detalle de toda licitacion conocida que sigue marcada Publicada en la base pero ya no aparece en el
+listado (`list_published_codes_missing_from_active_listing`), para aprender su estado real y poder
+aplicar `recompute_internal_status` (si no hubo decision de la Compuerta 1 -> `cerrada_sin_decision`).
+El listado por fecha (`"fecha"`) sigue disponible como opcion: ese listado si trae licitaciones en
+cualquier estado el dia que cambian (docs/10 S2.3), por lo que no necesita este paso adicional.
+
 Resultado de "status" de la corrida:
 - `failed`: el listado mismo no se pudo obtener tras los reintentos.
 - `partial`: se agoto la cuota diaria antes de terminar de procesar el listado (ADR-0010).
@@ -28,6 +44,7 @@ from sqlalchemy.orm import Session
 from sp.core.logging import get_logger
 from sp.core.timezones import UTC_TZ, chile_calendar_date
 from sp.modules.marketplace_adapters.base import (
+    CanonicalListingEntry,
     CanonicalOpportunityDetail,
     MarketplaceAdapter,
     QuotaExceededError,
@@ -38,6 +55,7 @@ from sp.modules.opportunities.service import (
     apply_detail,
     apply_listing_only_update,
     get_opportunity_by_code,
+    list_published_codes_missing_from_active_listing,
     needs_detail_fetch,
 )
 from sp.modules.radar.models import RadarRun
@@ -52,6 +70,8 @@ logger = get_logger(__name__)
 DEFAULT_RATE_LIMIT_SECONDS = 2.0
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_BACKOFF_BASE_SECONDS = 2.0
+DEFAULT_LISTING_SOURCE = "activas"
+_VALID_LISTING_SOURCES = ("activas", "fecha")
 
 
 @dataclass
@@ -114,6 +134,27 @@ def _score_and_classify(
     opportunity.classified_at = as_of_utc
 
 
+def _synthetic_listing_entry_from_detail(detail: CanonicalOpportunityDetail) -> CanonicalListingEntry:
+    """Para una licitacion que desaparecio del listado `activas` (ADR-0010 addendum 2): no tenemos
+    una fila de listado fresca, pero el detalle recien pedido ya trae su estado y fecha de cierre
+    reales. Se arma con la misma forma que una fila de listado real para que `opportunity.raw_list`
+    quede consistente de cara a la proxima comparacion de `needs_detail_fetch`."""
+    offers_close_raw = next((d.raw_text for d in detail.dates if d.date_type == "offers_close"), None)
+    return CanonicalListingEntry(
+        official_code=detail.official_code,
+        title=detail.title,
+        official_status_code=detail.official_status_code,
+        offers_close_raw=offers_close_raw,
+        raw_listing_entry={
+            "CodigoExterno": detail.official_code,
+            "Nombre": detail.title,
+            "CodigoEstado": detail.official_status_code,
+            "FechaCierre": offers_close_raw,
+            "_source": "detalle_tras_desaparecer_de_activas",
+        },
+    )
+
+
 def run_radar(
     db: Session,
     *,
@@ -126,6 +167,7 @@ def run_radar(
     trigger: str,
     radar_date: date | None = None,
     listing_date: date | None = None,
+    listing_source: str = DEFAULT_LISTING_SOURCE,
     rate_limit_seconds: float = DEFAULT_RATE_LIMIT_SECONDS,
     max_retries: int = DEFAULT_MAX_RETRIES,
     backoff_base_seconds: float = DEFAULT_BACKOFF_BASE_SECONDS,
@@ -136,14 +178,19 @@ def run_radar(
     clock: Callable[[], float] = time.monotonic,
     now: Callable[[], datetime] = lambda: datetime.now(UTC_TZ),
 ) -> RadarRunOutcome:
+    if listing_source not in _VALID_LISTING_SOURCES:
+        raise ValueError(
+            f"listing_source invalido: {listing_source!r} (valores validos: {_VALID_LISTING_SOURCES})"
+        )
+
     run_moment = now()
     effective_radar_date = radar_date or chile_calendar_date(run_moment)
-    # El listado liviano se pide para el dia calendario de Chile ANTERIOR al de la corrida, nunca
-    # el de hoy: la ventana de ejecucion (01:00-05:00, ADR-0010) cae en las primeras horas del dia,
-    # cuando "hoy" casi no tiene actividad todavia (confirmado contra la API real: `fecha=<hoy>` a
-    # esa hora devuelve 0 resultados). `radar_date` sigue siendo el dia de la corrida (asi lo usa el
-    # guard "ya corrio hoy" del scheduler, ADR-0007); `listing_date` es el dia cuya actividad se
-    # procesa, ya cerrado y completo.
+    # El listado liviano por fecha se pide para el dia calendario de Chile ANTERIOR al de la corrida,
+    # nunca el de hoy: la ventana de ejecucion (01:00-05:00, ADR-0010) cae en las primeras horas del
+    # dia, cuando "hoy" casi no tiene actividad todavia (confirmado contra la API real: `fecha=<hoy>`
+    # a esa hora devuelve 0 resultados). `radar_date` sigue siendo el dia de la corrida (asi lo usa
+    # el guard "ya corrio hoy" del scheduler, ADR-0007); `listing_date` es el dia cuya actividad se
+    # procesa, ya cerrado y completo. Solo aplica cuando `listing_source="fecha"`.
     effective_listing_date = listing_date or (effective_radar_date - timedelta(days=1))
 
     run = RadarRun(
@@ -196,7 +243,11 @@ def run_radar(
     errors: list[dict] = []
 
     try:
-        listing = client.fetch_listing(effective_listing_date.strftime("%d%m%Y"))
+        listing = (
+            client.fetch_active_listing()
+            if listing_source == "activas"
+            else client.fetch_listing(effective_listing_date.strftime("%d%m%Y"))
+        )
         db.commit()
     except QuotaExceededError:
         outcome.status = "partial"
@@ -260,6 +311,59 @@ def run_radar(
             llm_classifier=llm_classifier,
         )
         db.commit()
+
+    if listing_source == "activas" and status == "succeeded":
+        # ADR-0010 addendum 2: `estado=activas` nunca muestra un estado distinto de Publicada -- una
+        # licitacion conocida que dejo de estarlo simplemente desaparece del listado. Sin este paso,
+        # quedaria marcada Publicada/`detectada` para siempre, sin pasar nunca a
+        # `cerrada_sin_decision` (ADR-0006).
+        present_codes = {entry.official_code for entry in listing}
+        disappeared_codes = list_published_codes_missing_from_active_listing(db, present_codes=present_codes)
+
+        for official_code in disappeared_codes:
+            existing = get_opportunity_by_code(db, official_code)
+            if existing is None:
+                continue
+
+            try:
+                detail = client.fetch_detail(official_code)
+            except QuotaExceededError:
+                errors.append(
+                    {"official_code": official_code, "stage": "detail_disappeared", "error": "quota_exceeded"}
+                )
+                db.commit()
+                status = "partial"
+                break
+            except MarketplaceAdapterError as exc:
+                errors.append(
+                    {"official_code": official_code, "stage": "detail_disappeared", "error": str(exc)}
+                )
+                logger.warning(
+                    "radar_detail_disappeared_failed",
+                    radar_run_id=str(run.id),
+                    official_code=official_code,
+                    error=str(exc),
+                )
+                db.commit()
+                continue
+
+            synthetic_entry = _synthetic_listing_entry_from_detail(detail)
+            opportunity = apply_detail(
+                db, existing=existing, detail=detail, listing_entry=synthetic_entry, now=run_moment
+            )
+            outcome.updated_count += 1
+            outcome.detailed_count += 1
+
+            _score_and_classify(
+                db,
+                opportunity=opportunity,
+                detail=detail,
+                service_lines=service_lines,
+                scoring_profile=scoring_profile,
+                as_of_utc=run_moment,
+                llm_classifier=llm_classifier,
+            )
+            db.commit()
 
     outcome.status = status
     outcome.errors = errors
