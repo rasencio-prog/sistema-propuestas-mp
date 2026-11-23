@@ -228,3 +228,4 @@ comandos contra el proyecto en la nube (p. ej. generar tipos TypeScript), nunca 
 13. [ADR-0013](decisions/ADR-0013-frontend-react-vite.md) Frontend React + Vite + TypeScript (SPA) en vez de Next.js.
 14. [ADR-0014](decisions/ADR-0014-esquema-app-search-path-y-procrastinate.md) Selección de esquema por `search_path` (no calificado en migraciones); tablas de Procrastinate dentro de `app`.
 15. [ADR-0015](decisions/ADR-0015-jwks-url-y-log-de-secretos-embebidos.md) URL del JWKS a partir del origen de `SUPABASE_URL`; enmascarado de secretos embebidos en logs (p. ej. un ticket en una URL).
+16. [ADR-0016](decisions/ADR-0016-extensiones-en-esquema-public-explicito.md) `pgvector`/`citext` con `SCHEMA public` explícito (no el esquema ambiente de `search_path`), para que una extensión instalada al migrar `app` sea visible también al migrar `test` (y viceversa).

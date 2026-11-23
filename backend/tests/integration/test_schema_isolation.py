@@ -23,6 +23,23 @@ def test_current_schema_is_test(db_session) -> None:
     assert db_session.execute(text("SELECT current_schema()")).scalar_one() == "test"
 
 
+@pytest.mark.parametrize("extension_name", ["vector", "citext"])
+def test_extension_lives_in_public_not_in_app_or_test(db_session, extension_name: str) -> None:
+    """ADR-0016: si la extension cae en "app" o "test" (el primer esquema del search_path activo
+    al crearla) en vez de en "public" explicito, la corrida del OTRO esquema no la ve — IF NOT
+    EXISTS la encuentra ya registrada a nivel de base de datos y no la vuelve a crear, dejando el
+    tipo invisible para ese search_path (visto en la practica: pasaba en Supabase, fallaba en el
+    Postgres efimero de CI con "type citext does not exist" al crear `users`)."""
+    schema = db_session.execute(
+        text(
+            "SELECT n.nspname FROM pg_extension e "
+            "JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = :name"
+        ),
+        {"name": extension_name},
+    ).scalar_one()
+    assert schema == "public", f"{extension_name} deberia vivir en public, no en {schema!r}"
+
+
 @pytest.mark.parametrize("table_name", _APP_TABLES)
 def test_rls_is_enabled_without_policies(db_session, table_name: str) -> None:
     # Filtra por esquema "app": sin esto, "users" tambien matchea auth.users (de Supabase) y
