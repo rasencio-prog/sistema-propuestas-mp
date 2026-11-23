@@ -5,7 +5,7 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from sp.api import auth_routes, config_routes, health
+from sp.api import auth_routes, config_routes, health, radar_routes
 from sp.core.logging import (
     bind_request_context,
     clear_request_context,
@@ -44,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(auth_routes.router)
     app.include_router(config_routes.router)
+    app.include_router(radar_routes.router)
 
     return app
 

@@ -65,3 +65,18 @@ reales en `/p4-radar`.
 - Impacto en código (a implementar en `/p4-radar`, no en esta sesión): la lógica de "¿pido detalle?" compara
   `CodigoEstado`/`FechaCierre` del listado contra lo guardado antes de decidir, en vez de aplicar un filtro de
   palabras clave.
+
+## Addendum (`/p4-radar`, 23-11-2026): el listado se pide del día anterior, no del día de la corrida
+
+Al ejecutar una corrida real contra la API en producción (dentro de la ventana 01:00-05:00), el parámetro
+`fecha` enviado a `licitaciones.json` **no debe ser el día calendario de la corrida, sino el día anterior**:
+a esa hora el día de la corrida recién empezó (0-5 horas de antigüedad) y la API devuelve `Cantidad: 0`
+(confirmado contra la API real el 23-11-2026, hora `01:28` de Chile, para `fecha=23112026`); el día anterior,
+ya cerrado por completo, es el que tiene la actividad real a procesar — consistente con que la propia
+validación de `/p2-api` (`docs/10` §0.3) ya había consultado el listado de "el día anterior a la corrida",
+no el de ese mismo día.
+
+`radar_runs.radar_date` sigue siendo el día de la corrida (es la llave del guard "ya corrió hoy" de
+ADR-0007, que no cambia); el día que se le pide a la API es un concepto separado (`listing_date` en
+`modules/radar/service.py`), por defecto `radar_date - 1 día`, pero configurable si alguna vez hiciera
+falta reprocesar un día especifico a mano.

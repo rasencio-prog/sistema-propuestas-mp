@@ -229,3 +229,5 @@ comandos contra el proyecto en la nube (p. ej. generar tipos TypeScript), nunca 
 14. [ADR-0014](decisions/ADR-0014-esquema-app-search-path-y-procrastinate.md) Selección de esquema por `search_path` (no calificado en migraciones); tablas de Procrastinate dentro de `app`.
 15. [ADR-0015](decisions/ADR-0015-jwks-url-y-log-de-secretos-embebidos.md) URL del JWKS a partir del origen de `SUPABASE_URL`; enmascarado de secretos embebidos en logs (p. ej. un ticket en una URL).
 16. [ADR-0016](decisions/ADR-0016-extensiones-en-esquema-public-explicito.md) `pgvector`/`citext` con `SCHEMA public` explícito (no el esquema ambiente de `search_path`), para que una extensión instalada al migrar `app` sea visible también al migrar `test` (y viceversa).
+17. [ADR-0017](decisions/ADR-0017-formula-puntaje-radar-mvp1.md) Fórmula de puntaje del radar en MVP-1 (sin documentos): 5 dimensiones del brief, pesos y umbrales configurables en `scoring_profiles`.
+18. [ADR-0018](decisions/ADR-0018-seed-credencial-mp-desde-env.md) Semilla de `api_credentials` desde `MP_TICKET` en la migración del radar, bridge temporal hasta que exista el endpoint de E1-7.

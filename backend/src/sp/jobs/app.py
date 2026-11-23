@@ -30,3 +30,7 @@ app = App(
         configure=_configure_search_path,
     )
 )
+
+# Import de las tareas despues de crear `app` (se registran en el por el decorador `@app.task`,
+# efecto de borde necesario para que `procrastinate --app sp.jobs.app.app worker` las vea).
+from sp.modules.radar import tasks as _radar_tasks  # noqa: E402,F401

@@ -1,5 +1,5 @@
 # Levanta el worker de Procrastinate en local, sin Docker (ADR-0012).
-# Sin tareas todavia (Etapa 1): valida que el worker se conecta y lee su esquema de colas.
+# Desde /p4-radar: corre el radar (tick horario + "Ejecutar ahora" desde la API, ADR-0007).
 # Uso: desde la raiz del repo, .\scripts\dev-worker.ps1
 $ErrorActionPreference = "Stop"
 $backend = Join-Path $PSScriptRoot "..\backend"
