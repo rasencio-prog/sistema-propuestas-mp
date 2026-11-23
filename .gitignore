@@ -31,3 +31,6 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .claude/settings.local.json
+
+# Logs de procesos locales (dev-api/dev-worker/dev-web redirigidos a la raiz durante /p3-fundaciones)
+/_*.log

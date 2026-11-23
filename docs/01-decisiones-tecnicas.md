@@ -1,10 +1,14 @@
 # 01 · Decisiones técnicas (propuesta para aprobación)
 
-Estado: **APROBADO con cambios** el 21-11-2026; entorno local revisado el 22-11-2026 (ADR-0012, ADR-0013). Cada
-decisión marcada con ⚑ está registrada como ADR en `docs/decisions/` (lista en §4). Cambios respecto de la propuesta:
-producción local en el equipo del propietario (ADR-0008), presupuesto de IA y condición de no entrenamiento (§2.7),
-pruebas de página y tablas en la extracción (§2.6), desarrollo local sin Docker con Python 3.13 (ADR-0012,
-22-11-2026) y frontend React + Vite en vez de Next.js (ADR-0013, 22-11-2026).
+Estado: **APROBADO con cambios** el 21-11-2026; entorno local revisado el 22-11-2026 (ADR-0012, ADR-0013); puesta en
+marcha real de la Etapa 1 revisada el 23-11-2026 (ADR-0014, ADR-0015). Cada decisión marcada con ⚑ está registrada
+como ADR en `docs/decisions/` (lista en §4). Cambios respecto de la propuesta: producción local en el equipo del
+propietario (ADR-0008), presupuesto de IA y condición de no entrenamiento (§2.7), pruebas de página y tablas en la
+extracción (§2.6), desarrollo local sin Docker con Python 3.13 (ADR-0012, 22-11-2026), frontend React + Vite en vez
+de Next.js (ADR-0013, 22-11-2026), y dos correcciones encontradas al levantar la Etapa 1 por primera vez contra
+Supabase real: selección de esquema por `search_path` forzado con `SET` tras conectar, no por el parámetro de
+arranque `options` que el Session Pooler ignora (ADR-0014, 22/23-11-2026), y URL del JWKS a partir del origen de
+`SUPABASE_URL` (ADR-0015, 23-11-2026).
 
 Contexto que condiciona todo: 1 usuario hoy (máximo 1-3), radar diario nocturno, solo licitaciones, desarrollo en
 Windows **sin Docker** (virtualización deshabilitada en el equipo del propietario, ADR-0012) contra un proyecto
@@ -222,3 +226,5 @@ comandos contra el proyecto en la nube (p. ej. generar tipos TypeScript), nunca 
 11. [ADR-0011](decisions/ADR-0011-resumen-ia-excel1.md) Resumen IA en el Excel 1 (MVP-1), cacheado y contra el mismo presupuesto de IA.
 12. [ADR-0012](decisions/ADR-0012-entorno-dev-windows-sin-docker.md) Entorno de desarrollo en Windows sin Docker; Supabase en la nube también para desarrollo; Python 3.13.
 13. [ADR-0013](decisions/ADR-0013-frontend-react-vite.md) Frontend React + Vite + TypeScript (SPA) en vez de Next.js.
+14. [ADR-0014](decisions/ADR-0014-esquema-app-search-path-y-procrastinate.md) Selección de esquema por `search_path` (no calificado en migraciones); tablas de Procrastinate dentro de `app`.
+15. [ADR-0015](decisions/ADR-0015-jwks-url-y-log-de-secretos-embebidos.md) URL del JWKS a partir del origen de `SUPABASE_URL`; enmascarado de secretos embebidos en logs (p. ej. un ticket en una URL).

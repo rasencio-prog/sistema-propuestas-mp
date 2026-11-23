@@ -2,38 +2,29 @@
 
 Las migraciones vendidas de Procrastinate son deliberadamente irreversibles (`migrations_utils.
 irreversible()`); el downgrade que probamos aqui es el de nuestras 3 migraciones propias
-(0001..0003), hasta volver a "procrastinate_0043".
+(0001..0003), hasta volver a "procrastinate_0043". El fixture autouse `_migrated_test_schema`
+(conftest.py) ya dejo el esquema en head antes de que este test arranque.
 """
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
-import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import inspect, text
 
-from sp.core.settings import get_settings
-
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
-@pytest.fixture
-def alembic_config(monkeypatch: pytest.MonkeyPatch, integration_engine) -> Config:
-    # Reusa TEST_DATABASE_URL tal cual (nunca reconstruir desde engine.url: SQLAlchemy enmascara
-    # la contrasena en su repr/str por seguridad, lo que rompe la reconexion).
-    monkeypatch.setenv("DATABASE_URL", os.environ["TEST_DATABASE_URL"])
-    get_settings.cache_clear()
+def _alembic_config() -> Config:
     cfg = Config(str(BACKEND_DIR / "alembic.ini"))
     cfg.set_main_option("script_location", str(BACKEND_DIR / "migrations"))
-    yield cfg
-    get_settings.cache_clear()
+    return cfg
 
 
-def test_upgrade_head_then_downgrade_own_migrations(alembic_config: Config, integration_engine) -> None:
-    command.upgrade(alembic_config, "head")
+def test_upgrade_head_then_downgrade_own_migrations(integration_engine) -> None:
+    alembic_config = _alembic_config()
 
     inspector = inspect(integration_engine)
     tables = set(inspector.get_table_names())

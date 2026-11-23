@@ -12,11 +12,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from sp.core.db import get_db
+from sp.core.logging import get_logger
 from sp.core.security import InvalidTokenError, decode_supabase_jwt
 from sp.modules.organizations.models import OrganizationMember
 from sp.modules.users.models import User
 
 _bearer_scheme = HTTPBearer(auto_error=True)
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,9 @@ def get_current_user(
     try:
         claims = decode_supabase_jwt(credentials.credentials)
     except InvalidTokenError as exc:
+        # El mensaje de PyJWT nunca incluye el token ni ningun secreto, solo la razon (firma,
+        # audiencia, expiracion, kid no encontrado...); diagnosticar un 401 sin esto es imposible.
+        logger.warning("jwt_rejected", reason=str(exc))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token invalido o expirado."
         ) from exc

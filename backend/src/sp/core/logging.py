@@ -14,17 +14,30 @@ _SECRET_KEY_PATTERN = re.compile(
     r"(ticket|password|contrase|secret|api_key|apikey|token|authorization|encryption_key)",
     re.IGNORECASE,
 )
+# Secretos embebidos como parametro dentro de un valor mas largo, p. ej. una URL de la API de
+# Mercado Publico con "?ticket=...": enmascarar solo por nombre de campo (arriba) no alcanza, el
+# ticket completo quedaria visible dentro del campo "url" (CLAUDE.md: nunca loguear secretos).
+_SECRET_QUERY_PARAM_PATTERN = re.compile(
+    r"(?i)([?&](?:ticket|password|secret|api[_-]?key|token|authorization|encryption_key)=)[^&\s]*"
+)
 _MASK = "***"
 
 
+def _scrub_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return _SECRET_QUERY_PARAM_PATTERN.sub(r"\1" + _MASK, value)
+    return value
+
+
 def _scrub_secrets(_logger: Any, _method_name: str, event_dict: Mapping[str, Any]) -> dict[str, Any]:
-    """Enmascara valores de campos cuyo nombre sugiere un secreto (CLAUDE.md: nunca loguear secretos)."""
+    """Enmascara valores de campos cuyo nombre sugiere un secreto, y secretos embebidos como
+    parametro dentro de un valor de texto mas largo (p. ej. un ticket en una URL)."""
     scrubbed: dict[str, Any] = {}
     for key, value in event_dict.items():
         if _SECRET_KEY_PATTERN.search(key):
             scrubbed[key] = _MASK
         else:
-            scrubbed[key] = value
+            scrubbed[key] = _scrub_value(value)
     return scrubbed
 
 

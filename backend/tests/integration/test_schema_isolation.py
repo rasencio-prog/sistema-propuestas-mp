@@ -25,8 +25,14 @@ def test_current_schema_is_test(db_session) -> None:
 
 @pytest.mark.parametrize("table_name", _APP_TABLES)
 def test_rls_is_enabled_without_policies(db_session, table_name: str) -> None:
+    # Filtra por esquema "app": sin esto, "users" tambien matchea auth.users (de Supabase) y
+    # `.one()` falla con MultipleResultsFound (visto en la practica).
     row = db_session.execute(
-        text("SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = :t"),
+        text(
+            "SELECT c.relrowsecurity, c.relforcerowsecurity FROM pg_class c "
+            "JOIN pg_namespace n ON n.oid = c.relnamespace "
+            "WHERE n.nspname = 'app' AND c.relname = :t"
+        ),
         {"t": table_name},
     ).one()
     assert row.relrowsecurity is True, f"RLS no esta activado en {table_name}"
@@ -70,8 +76,8 @@ def test_test_runner_has_no_permission_on_app_schema(
     if is_superuser_connection:
         pytest.skip("Conexion con rol superusuario (CI efimero): no aplica el aislamiento de test_runner.")
 
-    has_privilege = db_session.execute(
-        text("SELECT has_table_privilege(current_user, :qualified, 'SELECT')"),
-        {"qualified": f"app.{table_name}"},
-    ).scalar_one()
-    assert has_privilege is False, f"test_runner no deberia poder leer app.{table_name}"
+    # Intento directo (no has_table_privilege: esa funcion lanza "permission denied for schema app"
+    # en vez de devolver false cuando el rol no tiene ni USAGE sobre el esquema, visto en la
+    # practica) — el aislamiento real es justamente que esto falle con permiso denegado.
+    with pytest.raises(DBAPIError, match="permission denied"):
+        db_session.execute(text(f"SELECT 1 FROM app.{table_name} LIMIT 1"))

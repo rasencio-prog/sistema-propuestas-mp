@@ -36,18 +36,26 @@ fechas en una licitación de Magallanes/Isla de Pascua (ninguna cayó en la mues
 
 ## E1 · Fundaciones (`/p3-fundaciones`) — MVP-1
 
-| ID | Historia | Criterios de aceptación | Est. | Dep. |
-| --- | --- | --- | --- | --- |
-| E1-1 | Como desarrollador quiero levantar todo con pocos comandos en Windows, sin Docker. | Base, Storage y Auth ya existen en el proyecto Supabase de desarrollo (ADR-0012); `scripts/dev-api.ps1`, `scripts/dev-worker.ps1` y `scripts/dev-web.ps1` levantan API, worker y frontend nativos; `/health` responde 200 con estado de base y cola. README paso a paso para Windows. | M | Aprobación de 01, ADR-0012 |
-| E1-2 | Como desarrollador quiero configuración por variables de entorno y logs JSON. | `.env.example` completo sin valores; logs JSON con `request_id`; prueba que verifica que un ticket ficticio en una URL no aparece en el log. | S | E1-1 |
-| E1-3 | Como desarrollador quiero migraciones iniciales. | Alembic crea `organizations`, `users`, `organization_members`, `api_credentials`, `service_lines`, `audit_events` en esquema `app` con RLS activado; `upgrade` y `downgrade` probados. | M | E1-1 |
-| E1-4 | Como administrador quiero las 5 líneas de servicio del brief precargadas y editables. | Semilla idempotente con nombre, descripción, palabras clave positivas y de exclusión (sección 2 del brief); rubros vacíos hasta /p2. | S | E1-3 |
-| E1-5 | Como usuario quiero iniciar sesión de forma segura. | Login con Supabase Auth; API rechaza JWT inválido/expirado (401); usuario sin membresía → 403. | M | E1-3 |
-| E1-6 | Como administrador quiero roles. | administrador, comercial, revisor, solo lectura; matriz de permisos probada por ruta (solo lectura no puede modificar nada). | M | E1-5 |
-| E1-7 | Como administrador quiero registrar el ticket de la API cifrado. | Ticket guardado con Fernet; nunca se devuelve por la API (solo "configurado / últimos 4"); cambio auditado. | S | E1-3 |
-| E1-8 | Como auditor quiero un registro de auditoría reutilizable. | `audit.record(...)` usado en login y cambios de configuración; la app no puede hacer UPDATE/DELETE en `audit_events`. | S | E1-3 |
-| E1-9 | Como administrador quiero configurar líneas de servicio desde una página. | Página "Configuración" lista, crea, edita y desactiva líneas y palabras clave; cambios auditados. | M | E1-5, E1-4 |
-| E1-10 | Como equipo quiero CI. | GitHub Actions: ruff, mypy, pytest con Postgres, lint frontend; falla si hay secretos (gitleaks). | S | E1-1 |
+Estado: **CERRADO salvo E1-7** (23-11-2026). Puesto en marcha y probado contra el proyecto Supabase real
+`sistema-propuestas-dev` (no solo en CI): login, roles, configuración de líneas de servicio, auditoría y los tres
+procesos (API, worker, frontend) verificados a mano por el propietario. Dos correcciones de infraestructura
+encontradas en ese proceso quedan documentadas en ADR-0014 y ADR-0015. **E1-7 (ticket de API cifrado) queda
+pendiente**: el modelo de datos y el cifrado (Fernet) existen (tabla `api_credentials`, `core/crypto.py`), pero no
+hay endpoint para darlo de alta ni mostrar "configurado / últimos 4"; no era parte del alcance explícito pedido en
+`/p3-fundaciones` y se deja para antes de `/p4-radar` (que sí necesita el ticket para llamar a la API).
+
+| ID | Historia | Criterios de aceptación | Est. | Dep. | Estado |
+| --- | --- | --- | --- | --- | --- |
+| E1-1 | Como desarrollador quiero levantar todo con pocos comandos en Windows, sin Docker. | Base, Storage y Auth ya existen en el proyecto Supabase de desarrollo (ADR-0012); `scripts/dev-api.ps1`, `scripts/dev-worker.ps1` y `scripts/dev-web.ps1` levantan API, worker y frontend nativos; `/health` responde 200 con estado de base y cola. README paso a paso para Windows. | M | Aprobación de 01, ADR-0012 | ✅ |
+| E1-2 | Como desarrollador quiero configuración por variables de entorno y logs JSON. | `.env.example` completo sin valores; logs JSON con `request_id`; prueba que verifica que un ticket ficticio en una URL no aparece en el log. | S | E1-1 | ✅ `tests/unit/test_logging.py` |
+| E1-3 | Como desarrollador quiero migraciones iniciales. | Alembic crea `organizations`, `users`, `organization_members`, `api_credentials`, `service_lines`, `audit_events` en esquema `app` con RLS activado; `upgrade` y `downgrade` probados. | M | E1-1 | ✅ `tests/integration/test_migrations.py` |
+| E1-4 | Como administrador quiero las 5 líneas de servicio del brief precargadas y editables. | Semilla idempotente con nombre, descripción, palabras clave positivas y de exclusión (sección 2 del brief); rubros vacíos hasta /p2. | S | E1-3 | ✅ probado contra Supabase real |
+| E1-5 | Como usuario quiero iniciar sesión de forma segura. | Login con Supabase Auth; API rechaza JWT inválido/expirado (401); usuario sin membresía → 403. | M | E1-3 | ✅ `tests/unit/test_security.py`, `tests/integration/test_auth_flow.py`, y probado en el navegador |
+| E1-6 | Como administrador quiero roles. | administrador, comercial, revisor, solo lectura; matriz de permisos probada por ruta (solo lectura no puede modificar nada). | M | E1-5 | ✅ `tests/integration/test_config_routes_permissions.py` |
+| E1-7 | Como administrador quiero registrar el ticket de la API cifrado. | Ticket guardado con Fernet; nunca se devuelve por la API (solo "configurado / últimos 4"); cambio auditado. | S | E1-3 | ⏳ pendiente (ver nota arriba) |
+| E1-8 | Como auditor quiero un registro de auditoría reutilizable. | `audit.record(...)` usado en login y cambios de configuración; la app no puede hacer UPDATE/DELETE en `audit_events`. | S | E1-3 | ✅ trigger bloquea UPDATE/DELETE para cualquier rol, no solo la app |
+| E1-9 | Como administrador quiero configurar líneas de servicio desde una página. | Página "Configuración" lista, crea, edita y desactiva líneas y palabras clave; cambios auditados. | M | E1-5, E1-4 | ✅ probado en el navegador (editar, activar/desactivar, recargar) |
+| E1-10 | Como equipo quiero CI. | GitHub Actions: ruff, mypy, pytest con Postgres, lint frontend; falla si hay secretos (gitleaks). | S | E1-1 | ✅ |
 
 ## E2 · Radar (`/p4-radar`) — MVP-1
 

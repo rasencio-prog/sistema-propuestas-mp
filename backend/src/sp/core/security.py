@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
+from urllib.parse import urlsplit
 
 import jwt
 from jwt import PyJWKClient
@@ -23,11 +24,21 @@ class InvalidTokenError(Exception):
     pass
 
 
+def jwks_url(supabase_url: str) -> str:
+    """Construye la URL del JWKS a partir del origen de SUPABASE_URL, descartando cualquier ruta.
+
+    SUPABASE_URL a veces se pega con una ruta de otra seccion del panel (p. ej. `/rest/v1`); sin
+    descartarla, la URL resultante queda mal formada (`.../rest/v1/auth/v1/.well-known/jwks.json`,
+    que Supabase rechaza con 401) y el JWT se rechaza con un error enganoso de "token invalido",
+    aunque la firma sea correcta (visto en la practica)."""
+    parsed = urlsplit(supabase_url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    return f"{origin}/auth/v1/.well-known/jwks.json"
+
+
 @lru_cache
 def _jwks_client() -> PyJWKClient:
-    settings = get_settings()
-    jwks_url = f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
-    return PyJWKClient(jwks_url, cache_keys=True)
+    return PyJWKClient(jwks_url(get_settings().supabase_url), cache_keys=True)
 
 
 @dataclass(frozen=True)

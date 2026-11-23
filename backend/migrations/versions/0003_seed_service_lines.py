@@ -113,19 +113,28 @@ def upgrade() -> None:
     organization_id = _get_or_create_organization(conn)
 
     for line in SEED_SERVICE_LINES:
+        # Select-then-insert (no "INSERT ... SELECT ... WHERE NOT EXISTS" con el mismo bind
+        # parameter en dos contextos distintos): Postgres no logra inferir un tipo consistente
+        # para ese parametro repetido ("AmbiguousParameter: inconsistent types deduced"), visto en
+        # la puesta en marcha real (docs/decisions/ADR-0014).
+        already_exists = conn.execute(
+            sa.text(
+                "SELECT 1 FROM service_lines "
+                "WHERE organization_id = :organization_id "
+                "AND lower(name) = lower(:name) AND deleted_at IS NULL"
+            ),
+            {"organization_id": organization_id, "name": line["name"]},
+        ).scalar()
+        if already_exists is not None:
+            continue
+
         conn.execute(
             sa.text(
                 """
                 INSERT INTO service_lines
                     (organization_id, name, description, positive_keywords,
                      exclusion_keywords, category_codes)
-                SELECT :organization_id, :name, :description, :positive_keywords, '{}', '{}'
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM service_lines
-                    WHERE organization_id = :organization_id
-                      AND lower(name) = lower(:name)
-                      AND deleted_at IS NULL
-                )
+                VALUES (:organization_id, :name, :description, :positive_keywords, '{}', '{}')
                 """
             ),
             {

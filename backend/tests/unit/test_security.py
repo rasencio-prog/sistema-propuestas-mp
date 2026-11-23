@@ -10,7 +10,32 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from sp.core.security import SUPABASE_AUDIENCE, InvalidTokenError, decode_supabase_jwt
+from sp.core.security import SUPABASE_AUDIENCE, InvalidTokenError, decode_supabase_jwt, jwks_url
+
+
+@pytest.mark.parametrize(
+    ("supabase_url", "expected"),
+    [
+        (
+            "https://vapiwnmijdikavtjzuiv.supabase.co",
+            "https://vapiwnmijdikavtjzuiv.supabase.co/auth/v1/.well-known/jwks.json",
+        ),
+        (
+            "https://vapiwnmijdikavtjzuiv.supabase.co/",
+            "https://vapiwnmijdikavtjzuiv.supabase.co/auth/v1/.well-known/jwks.json",
+        ),
+        (
+            # SUPABASE_URL pegado con una ruta de otra seccion del panel (p. ej. "Data API" /
+            # REST): sin descartar la ruta, el JWKS queda en ".../rest/v1/auth/v1/..." y Supabase
+            # lo rechaza con 401, lo que el backend reporta como "token invalido" (visto en la
+            # practica al diagnosticar un 401 real en /api/auth/login).
+            "https://vapiwnmijdikavtjzuiv.supabase.co/rest/v1",
+            "https://vapiwnmijdikavtjzuiv.supabase.co/auth/v1/.well-known/jwks.json",
+        ),
+    ],
+)
+def test_jwks_url_discards_any_path_in_supabase_url(supabase_url: str, expected: str) -> None:
+    assert jwks_url(supabase_url) == expected
 
 
 @dataclass

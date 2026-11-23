@@ -44,27 +44,40 @@ copy .env.example .env
 
 Completa en `.env` (nunca se versiona; ver `.env.example` para dónde sacar cada valor en el panel de Supabase):
 
-- `SUPABASE_URL`, `SUPABASE_ANON_KEY`
+- `SUPABASE_URL` (solo el origen, p. ej. `https://<project-ref>.supabase.co`; si por error queda con una ruta
+  pegada de otra sección del panel, el backend igual funciona — descarta cualquier ruta antes de construir la URL
+  del JWKS, ver ADR-0015 — pero es más prolijo dejarlo limpio), `SUPABASE_ANON_KEY`
 - `DATABASE_URL` (Session Pooler, puerto 5432, con `options=-csearch_path=app` — ya viene en el formato de ejemplo)
 - `APP_ENCRYPTION_KEY` (generar una vez con el comando que indica el comentario del archivo)
 - `TEST_DATABASE_URL` (requiere el paso 4 primero)
 - `MP_TICKET` solo hace falta desde `/p2-api` (ya validado en esta etapa, pero no se usa todavía en el código)
 
-### 4. Configuración única en Supabase: esquema `test` y rol `test_runner` (ADR-0012)
+### 4. Configuración única en Supabase: esquemas `app`/`test` y rol `test_runner` (ADR-0012, ADR-0014)
 
 Esto se hace **una sola vez**, a mano, en el **editor SQL** del proyecto `sistema-propuestas-dev`
-(panel de Supabase → SQL Editor). Es una operación de la instancia (crear un rol de Postgres), no un cambio de
-esquema de la aplicación, por eso no es una migración de Alembic.
+(panel de Supabase → SQL Editor), **antes** del primer `alembic upgrade head` (paso 5). Es una operación de la
+instancia (crear esquemas y un rol de Postgres), no un cambio de esquema de la aplicación, por eso no es una
+migración de Alembic — y, a diferencia de `CREATE EXTENSION`, Postgres exige el privilegio de `CREATE` en la
+base de datos para `CREATE SCHEMA ... IF NOT EXISTS` **incluso si el esquema ya existe** (comprobado en la
+práctica: el rol restringido `test_runner` no puede ejecutarlo ni como no-op), así que ninguna migración puede
+crear el esquema `app` seguida — tiene que ser aquí, con un rol con privilegios. Hacerlo aquí, antes de correr
+cualquier migración, evita además otro problema real encontrado en la puesta en marcha: las 43 migraciones
+vendidas de Procrastinate corren **antes** que las propias (van primero en la cadena), así que si `app` no
+existe todavía cuando ellas corren, sus tablas terminan en `public` en vez de en `app` (visto y corregido en la
+práctica; detalle en `docs/decisions/ADR-0014`, adenda).
 
 ```sql
--- 1) Esquema para las pruebas de integracion locales (ADR-0012, docs/07 S0).
+-- 1) Esquemas de la aplicacion (app) y de las pruebas de integracion locales (test, ADR-0012, docs/07 S0).
+--    Crearlos aqui, antes de "alembic upgrade head", evita que las migraciones de Procrastinate
+--    (que corren antes que las propias) terminen en "public" por no existir "app" todavia.
+CREATE SCHEMA IF NOT EXISTS app;
 CREATE SCHEMA IF NOT EXISTS test;
 
 -- 2) Rol restringido para las pruebas: todo sobre "test", nada sobre "app"
 --    (las tablas de Procrastinate viven dentro de "app" tambien, ver ADR-0014,
 --    asi que "ningun permiso sobre app" ya las cubre).
---    Cambia la contrasena antes de usarla en TEST_DATABASE_URL.
-CREATE ROLE test_runner WITH LOGIN PASSWORD 'cambia-esta-contrasena';
+--    Reemplaza <CLAVE_TEST_RUNNER> por una contrasena propia antes de ejecutar.
+CREATE ROLE test_runner WITH LOGIN PASSWORD '<CLAVE_TEST_RUNNER>';
 
 -- Con USAGE + CREATE en el esquema "test", test_runner puede correr "alembic upgrade head"
 -- (las tablas que cree quedan de su propiedad; no hace falta otorgar nada mas).

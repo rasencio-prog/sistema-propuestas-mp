@@ -18,7 +18,9 @@ _FAKE_TEST_ENV = {
 
 @pytest.fixture(autouse=True)
 def _isolated_settings_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Aisla las pruebas del .env real (CLAUDE.md: nunca leer/imprimir .env); usa valores ficticios."""
+    """Aisla las pruebas unitarias del .env real (CLAUDE.md: nunca leer/imprimir .env); usa valores
+    ficticios. Solo en tests/unit/ (no en tests/integration/, que necesita el TEST_DATABASE_URL real
+    del .env; visto en la practica: puesto en tests/conftest.py afectaba tambien a integracion)."""
     for key, value in _FAKE_TEST_ENV.items():
         monkeypatch.setenv(key, value)
     get_settings.cache_clear()
