@@ -23,7 +23,6 @@ htmlcov/
 
 # Node
 node_modules/
-.next/
 dist/
 
 # Sistema / editor

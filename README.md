@@ -6,14 +6,17 @@ Especificación: `docs/brief/`. Reglas del proyecto para el agente: `CLAUDE.md`.
 ## Cómo trabajar con Claude Code en VS Code
 
 1. Completa `docs/00-decisiones-propietario.md`.
-2. Copia `.env.example` como `.env` y pon tu ticket de API en `MP_TICKET` (solo hace falta desde `/p2-api`).
+2. Copia `.env.example` como `.env` y completa `MP_TICKET` (solo hace falta desde `/p2-api`) y, desde `/p3-fundaciones`,
+   las variables de Supabase (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `DATABASE_URL`, `TEST_DATABASE_URL`) y
+   `APP_ENCRYPTION_KEY`. El entorno local es Windows nativo, sin Docker (ADR-0012): no se necesita Docker Desktop ni
+   Supabase CLI; se desarrolla contra un proyecto Supabase en la nube dedicado a desarrollo.
 3. Abre el panel de Claude Code y ejecuta los comandos en orden. Cada uno termina con el agente detenido esperando tu revisión.
 
 | Orden | Comando | Etapa | Tu revisión antes de seguir |
 | --- | --- | --- | --- |
 | 1 | `/p1-plan` | Descubrimiento y plan (sin código) | Aprobar stack, modelo de datos y backlog |
 | 2 | `/p2-api` | Validación de la API con ticket real | Abrir 2 links de ficha y revisar el informe |
-| 3 | `/p3-fundaciones` | Repo, Docker, base de datos, login | Levantarlo en local |
+| 3 | `/p3-fundaciones` | Repo, entorno Windows sin Docker, base de datos (Supabase dev), login | Levantarlo en local |
 | 4 | `/p4-radar` | Captura, clasificación y puntaje | Revisar las oportunidades capturadas |
 | 5 | `/p5-excel1` | Excel de preselección | Marcar decisiones en un Excel real |
 | 6 | `/p6-intake` | Carga asistida de adjuntos | Cargar adjuntos de 2 o 3 licitaciones |

@@ -6,11 +6,11 @@ Completa antes de ejecutar `/p1-plan`. Deja **PENDIENTE** en lo que no sepas: el
 | --- | --- |
 | Empresa usuaria | Databrain SpA — empresa de servicios TI (datos corporativos se cargan en MVP-3) |
 | Usuarios iniciales | 1 usuario: Robinson Asencio (administrador). Preparado para crecer a 1-3 usuarios |
-| Despliegue | Desarrollo local en mi equipo con Docker. Producción en Supabase (nube): PostgreSQL, pgvector, Storage y Auth |
+| Despliegue | Desarrollo local en mi equipo, sin Docker (virtualización deshabilitada, ADR-0012): proyecto Supabase en la nube dedicado a desarrollo. Producción en otro proyecto Supabase (nube): PostgreSQL, pgvector, Storage y Auth |
 | Frecuencia del radar | Diaria nocturna |
 | Modalidades del MVP | Solo licitaciones (Compra Ágil después) |
 | Proveedor de IA | Comparar Anthropic (Opus 5.5 y Sonnet 5.5) contra OpenAI detrás de una capa propia. Tope USD 40/mes configurable, alerta al 80 %. El proveedor no debe usar los datos para entrenar; retención cero se revisa en MVP-3 (ADR-0005) |
-| Ejecución del backend | En mi equipo (Windows + Docker) por ahora; servicio de contenedores en la nube a elegir antes de cerrar MVP-2 (ADR-0008) |
+| Ejecución del backend | En mi equipo (Windows, procesos nativos sin Docker) por ahora; servicio de contenedores en la nube a elegir antes de cerrar MVP-2 (ADR-0008, ADR-0012) |
 | Desarrollo local en | Windows |
 | Palabras clave / rubros iniciales | Derivadas de las 5 líneas de servicio del brief (sección 2) |
 | Umbrales de aceptación | Provisionales: 85 % clasificación, 90 % requisitos excluyentes, 100 % fechas |

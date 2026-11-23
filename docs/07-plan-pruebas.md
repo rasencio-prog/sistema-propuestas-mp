@@ -2,17 +2,38 @@
 
 Estado: **APROBADO con cambios** (21-11-2026): pruebas de filtros duros y selección del lote (`/p4`, `/p5`), creación de
 la postulación en "Descargar" (`/p5`), conservación de página y tablas (`/p7`), tope de gasto de IA (`/p7`) y conjunto
-de evaluación que funciona desde 5 licitaciones (§3).
+de evaluación que funciona desde 5 licitaciones (§3). Base de pruebas local sin Docker revisada el 22-11-2026
+(ADR-0012, §0).
 
 Niveles:
 - **Unitarias**: lógica pura, sin red ni base (`tests/unit`). Rápidas, en cada push.
-- **Integración**: con Postgres real del compose, Storage local y API externa simulada con `respx` (`tests/integration`).
+- **Integración**: con Postgres real (ver §0), Storage local y API externa simulada con `respx` (`tests/integration`).
   **Nunca se llama a la API real de Mercado Público ni al LLM real en CI.**
 - **Aceptación**: criterios de la sección 17 por etapa (`tests/acceptance`), automáticos cuando es posible y con una
   revisión manual del propietario al cierre de cada etapa.
 - **Evaluación**: calidad de la IA sobre el conjunto de evaluación (`backend/evals`), manual / bajo demanda, con costo.
 
 Cobertura objetivo: ≥ 85 % en `scoring`, `review_excel`, `analysis/citations`, `workflow`, `core/timezones`; ≥ 70 % global.
+
+## 0. Base de pruebas de integración local, sin Docker (ADR-0012)
+
+El equipo del propietario no puede correr Docker, así que no hay un Postgres local efímero tipo `docker compose`.
+Las pruebas de integración que corren **en el equipo del propietario** (no en CI) usan el mismo proyecto Supabase de
+desarrollo (`sistema-propuestas-dev`), pero en un **esquema separado `test`**, nunca en `app`:
+
+- Una sola vez, a mano, en el editor SQL de Supabase (no es una migración de Alembic: crear un rol es una operación de
+  la instancia, no del esquema de la aplicación): se crea el esquema `test` y un rol `test_runner` con todos los
+  permisos sobre `test` y **ninguno** sobre `app` ni `procrastinate`. Comando exacto en `/p3-fundaciones`.
+- Las pruebas se conectan con `TEST_DATABASE_URL` (rol `test_runner`, `options=-csearch_path=test`), nunca con
+  `DATABASE_URL` (el de la app). Como el `search_path` fija el esquema por defecto, las mismas migraciones de Alembic
+  (que crean tablas sin calificar el esquema) terminan en `test` sin tocar código.
+- El aislamiento es por permisos de Postgres, no solo por convención: aunque una prueba tuviera un error, el rol
+  `test_runner` no puede escribir en `app`.
+- **CI no usa esto**: GitHub Actions levanta su propio servicio Postgres + pgvector efímero (ver `.github/workflows/ci.yml`),
+  sin ninguna relación con Supabase. CI es la red de seguridad que sí corre en Linux (paridad con una futura producción
+  en contenedor), aunque el desarrollo local sea en Windows.
+- Antes de cada corrida local de `tests/integration`, un fixture de `pytest` verifica `select current_schema()` y
+  rechaza correr si no es `test`, para no confiar solo en que la variable de entorno esté bien puesta.
 
 ## 1. Pruebas transversales de zona horaria (desde `/p4`)
 
@@ -45,7 +66,7 @@ todo el país.
 | Tipo | Pruebas |
 | --- | --- |
 | Unitarias | Configuración falla si falta variable obligatoria; filtro de logs elimina `ticket=…` y `Authorization`; cifrado y descifrado Fernet; matriz de permisos por rol. |
-| Integración | Migraciones `upgrade`/`downgrade` en base limpia; semilla idempotente de 5 líneas; JWT válido/expirado/firma inválida; usuario sin membresía → 403; `audit_events` no admite UPDATE/DELETE; RLS activado en todas las tablas de `app`. |
+| Integración | Migraciones `upgrade`/`downgrade` en el esquema `test` (limpio en cada corrida, ver §0); semilla idempotente de 5 líneas; JWT válido/expirado/firma inválida; usuario sin membresía → 403; `audit_events` no admite UPDATE/DELETE; RLS activado en todas las tablas de `app`; prueba que confirma que el rol `test_runner` no tiene permisos sobre `app`. |
 | Aceptación | Levantar en Windows con un comando; login; editar una línea de servicio y ver el evento de auditoría; CI en verde. |
 
 ### `/p4` Radar

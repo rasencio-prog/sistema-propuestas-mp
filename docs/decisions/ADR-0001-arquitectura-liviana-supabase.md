@@ -1,6 +1,6 @@
 # ADR-0001 · Arquitectura liviana con Supabase y cola sobre Postgres
 
-- Estado: Aceptada
+- Estado: Aceptada (entorno local modificado por ADR-0012)
 - Fecha: 21-11-2026
 - Decide: propietario, a propuesta de `/p1-plan`
 
@@ -12,8 +12,10 @@ licitaciones analizadas al día. El propietario ya eligió Supabase para producc
 ## Decisión
 Monolito modular FastAPI + un worker del mismo código. Supabase aporta PostgreSQL con pgvector, Storage y Auth.
 Los trabajos asíncronos y las tareas programadas usan **Procrastinate** sobre la misma base. Sin Redis, Celery ni MinIO.
-En local se replica Supabase con Supabase CLI (Docker). El worker usa conexión directa o pooler en modo sesión
-(Procrastinate usa `LISTEN/NOTIFY`; si no está disponible, funciona por sondeo).
+En local **no se replica Supabase**: se desarrolla contra un proyecto Supabase en la nube dedicado a desarrollo
+(`sistema-propuestas-dev`, ver ADR-0012; el equipo del propietario no puede correr Docker). El worker usa el
+Session Pooler de Supabase (puerto 5432), porque Procrastinate usa `LISTEN/NOTIFY` (incompatible con el Transaction
+Pooler).
 
 ## Consecuencias
 - Menos piezas que operar y respaldar; costo mensual bajo.

@@ -1,11 +1,14 @@
 # 04 · Estructura del repositorio
 
-Estado: **APROBADO** (21-11-2026).
+Estado: **APROBADO** (21-11-2026); entorno local sin Docker revisado el 22-11-2026 (ADR-0012); frontend React + Vite
+en vez de Next.js revisado el 22-11-2026 (ADR-0013).
 
 Basada en la sección 21 del brief, ajustada a la arquitectura liviana (`01-decisiones-tecnicas.md`).
 Cambios respecto del brief: se quita `/app` como raíz intermedia (no aporta), `workers/` pasa a ser `jobs/` con
-tareas de Procrastinate, se agregan `modules/llm`, `modules/workflow`, `modules/audit` y la carpeta `supabase/`.
+tareas de Procrastinate, se agregan `modules/llm`, `modules/workflow`, `modules/audit`.
 Las carpetas de MVP-3 (`company_library`, `proposals`, `economics`, `analytics`) **no se crean** hasta su etapa.
+Por ADR-0012 (desarrollo en Windows sin Docker): no hay `infra/compose.yaml` ni carpeta `supabase/` de Supabase CLI
+local; el `Dockerfile` queda como artefacto opcional solo para la producción futura en un servicio de contenedores.
 
 ```text
 sistema-propuestas-mp/
@@ -14,6 +17,7 @@ sistema-propuestas-mp/
 ├── backend/
 │   ├── pyproject.toml            # uv; dependencias fijadas en uv.lock
 │   ├── uv.lock
+│   ├── .venv/                    # entorno virtual nativo de Windows (Python 3.13), excluido en .gitignore
 │   ├── alembic.ini
 │   ├── migrations/               # Alembic: env.py + versions/ (toda modificación de esquema)
 │   ├── src/sp/                   # paquete "sp" (sistema de propuestas)
@@ -57,26 +61,34 @@ sistema-propuestas-mp/
 │   │   └── jobs/                 # tareas Procrastinate: radar, intake_watch, extract, analyze, excel
 │   ├── tests/
 │   │   ├── unit/
-│   │   ├── integration/          # con Postgres real del compose
+│   │   ├── integration/          # con Postgres real: esquema `test` del proyecto Supabase dev (local, ADR-0012) o el servicio Postgres de CI
 │   │   ├── acceptance/           # criterios de la sección 17 por etapa
 │   │   └── fixtures/             # DATOS FICTICIOS marcados; respuestas API grabadas y saneadas
 │   └── evals/
 │       ├── harness/              # código del arnés (/p9)
 │       ├── templates/            # plantilla de anotación + guía
 │       └── data/                 # BASES REALES — excluida en .gitignore
-├── frontend/                     # Next.js + TypeScript (mínimo)
+├── frontend/                     # React + Vite + TypeScript, SPA mínima (ADR-0013)
 │   ├── package.json
-│   └── src/app/
-│       ├── login/
-│       ├── configuracion/        # líneas de servicio y palabras clave
-│       ├── lotes/                # lotes y ejecuciones
-│       └── documentos/           # carga de documentos
+│   ├── vite.config.ts
+│   ├── index.html
+│   ├── .env.local             # VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL (excluido en .gitignore)
+│   └── src/
+│       ├── main.tsx           # monta React Router
+│       ├── App.tsx            # rutas: login, configuración, lotes, documentos
+│       ├── lib/
+│       │   ├── supabaseClient.ts  # @supabase/supabase-js, solo para el login
+│       │   └── apiClient.ts       # fetch a FastAPI con el JWT (VITE_API_BASE_URL)
+│       └── pages/
+│           ├── Login.tsx
+│           ├── Configuracion.tsx  # líneas de servicio y palabras clave
+│           ├── Lotes.tsx          # lotes y ejecuciones
+│           └── Documentos.tsx     # carga de documentos
 ├── infra/
-│   ├── docker/
-│   │   ├── backend.Dockerfile    # API
-│   │   └── worker.Dockerfile     # + tesseract-ocr-spa + libreoffice-core
-│   └── compose.yaml              # api, worker, web (Supabase lo levanta su CLI)
-├── supabase/                     # config.toml de Supabase CLI (sin migraciones: van por Alembic)
+│   └── docker/                   # OPCIONAL (ADR-0012): solo para la producción futura en un servicio de
+│                                  # contenedores; no se usa para desarrollar ni se exige en /p3
+│       ├── backend.Dockerfile    # API
+│       └── worker.Dockerfile     # + tesseract-ocr-spa + libreoffice-core
 ├── data/                         # LOCAL, excluida en .gitignore
 │   ├── intake/<código>/          # bandeja vigilada de carga asistida
 │   └── exports/                  # Excel generados para revisión
@@ -87,8 +99,10 @@ sistema-propuestas-mp/
 │   ├── decisions/                # ADR
 │   └── brief/
 ├── scripts/                      # utilidades y exploración (no producción): explore_mp_api.py, seed, etc.
+│                                  # + lanzadores nativos de Windows (PowerShell, ADR-0012): dev-api.ps1,
+│                                  # dev-worker.ps1, dev-web.ps1 (cada uno activa backend/.venv donde corresponde)
 ├── .env.example                  # sin valores
-├── .gitignore                    # .env, data/, backend/evals/data/, exports
+├── .gitignore                    # .env, backend/.venv, frontend/node_modules, data/, backend/evals/data/, exports
 ├── CLAUDE.md
 └── README.md
 ```

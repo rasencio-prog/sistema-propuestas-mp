@@ -1,10 +1,12 @@
 # 02 · Arquitectura
 
 Estado: **APROBADO con cambios** (21-11-2026): filtros duros y selección del lote en el flujo (§2), estado del embudo
-en `opportunities` y postulación desde "Descargar" (§3, ADR-0006), backend en el equipo del propietario (ADR-0008).
+en `opportunities` y postulación desde "Descargar" (§3, ADR-0006), backend en el equipo del propietario (ADR-0008),
+entorno local en Windows sin Docker (ADR-0012, 22-11-2026), frontend React + Vite en vez de Next.js (ADR-0013,
+22-11-2026).
 
 Monolito modular en Python (FastAPI) con un worker asíncrono que comparte el mismo código, PostgreSQL gestionado (Supabase)
-como base y como cola de trabajos, y un frontend Next.js mínimo. Base: `01-decisiones-tecnicas.md`.
+como base y como cola de trabajos, y un frontend SPA mínimo (React + Vite). Base: `01-decisiones-tecnicas.md`.
 
 ## 1. Diagrama de componentes
 
@@ -16,7 +18,7 @@ flowchart LR
         PORTAL[Ficha en mercadopublico.cl<br/>la persona descarga a mano]
     end
 
-    subgraph Front["Frontend Next.js (mínimo)"]
+    subgraph Front["Frontend SPA (React + Vite, mínimo)"]
         LOGIN[Login]
         CFG[Configuración<br/>líneas y palabras clave]
         LOTES[Lotes y ejecuciones]

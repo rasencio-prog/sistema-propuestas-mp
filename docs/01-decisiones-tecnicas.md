@@ -1,11 +1,15 @@
 # 01 · Decisiones técnicas (propuesta para aprobación)
 
-Estado: **APROBADO con cambios** el 21-11-2026. Cada decisión marcada con ⚑ está registrada como ADR en
-`docs/decisions/` (lista en §4). Cambios respecto de la propuesta: producción local en Docker (ADR-0008), presupuesto
-de IA y condición de no entrenamiento (§2.7), pruebas de página y tablas en la extracción (§2.6).
+Estado: **APROBADO con cambios** el 21-11-2026; entorno local revisado el 22-11-2026 (ADR-0012, ADR-0013). Cada
+decisión marcada con ⚑ está registrada como ADR en `docs/decisions/` (lista en §4). Cambios respecto de la propuesta:
+producción local en el equipo del propietario (ADR-0008), presupuesto de IA y condición de no entrenamiento (§2.7),
+pruebas de página y tablas en la extracción (§2.6), desarrollo local sin Docker con Python 3.13 (ADR-0012,
+22-11-2026) y frontend React + Vite en vez de Next.js (ADR-0013, 22-11-2026).
 
-Contexto que condiciona todo: 1 usuario hoy (máximo 1-3), radar diario nocturno, solo licitaciones, desarrollo en Windows
-con Docker, producción ya elegida por el propietario en **Supabase** (PostgreSQL + pgvector + Storage + Auth).
+Contexto que condiciona todo: 1 usuario hoy (máximo 1-3), radar diario nocturno, solo licitaciones, desarrollo en
+Windows **sin Docker** (virtualización deshabilitada en el equipo del propietario, ADR-0012) contra un proyecto
+Supabase en la nube dedicado a desarrollo, producción ya elegida por el propietario en **Supabase** (PostgreSQL +
+pgvector + Storage + Auth) con un proyecto separado.
 
 ---
 
@@ -18,7 +22,7 @@ con Docker, producción ya elegida por el propietario en **Supabase** (PostgreSQ
 | Respaldos, parches, TLS de la base | Nuestros | Del proveedor (Pro incluye respaldos diarios) |
 | Volumen de trabajos | Diseñado para miles/seg | Decenas por día (radar 1 vez/día + análisis de pocas licitaciones) — sobra |
 | Consistencia trabajo ↔ datos | Dos sistemas (Redis y Postgres): un trabajo puede encolarse aunque la transacción falle | La cola vive en la misma base: se encola dentro de la misma transacción |
-| Paridad dev/prod | Alta (todo en Docker) | Alta si en local se usa Supabase CLI (también Docker) |
+| Paridad dev/prod | Alta (todo en Docker) | Media: dev en Windows nativo sin Docker, prod en el equipo del propietario con el mismo código (sin contenedor todavía, ADR-0012) |
 | Riesgo de lock-in | Bajo | Medio-bajo: Auth y Storage son de Supabase, pero detrás de interfaces propias; la base es Postgres estándar |
 | Escalar a multiempresa | Directo | Directo hasta cientos de usuarios; luego se agrega Redis si hiciera falta |
 
@@ -31,8 +35,9 @@ con Docker, producción ya elegida por el propietario en **Supabase** (PostgreSQ
 - **Salida de emergencia:** monolito modular con interfaces (`JobQueue`, `FileStorage`, `AuthVerifier`, `LLMProvider`).
   Si algún día hiciera falta, se cambia Procrastinate por Celery o Supabase Storage por S3 sin tocar el dominio.
 
-Lo que **no** cambia respecto del brief: FastAPI, PostgreSQL + pgvector, openpyxl, Docker, monolito modular, frontend Next.js
-mínimo.
+Lo que **no** cambia respecto del brief: FastAPI, PostgreSQL + pgvector, openpyxl, monolito modular, frontend mínimo
+(React + Vite en vez de Next.js, ADR-0013). Docker queda como artefacto opcional solo para la producción futura
+(ADR-0012); no se usa para desarrollar.
 
 ---
 
@@ -42,7 +47,7 @@ mínimo.
 
 | Necesidad | Elección | Por qué | Descartado |
 | --- | --- | --- | --- |
-| Lenguaje | Python 3.12 | Ecosistema de documentos y Excel; 3.12 tiene ruedas binarias estables para todas las librerías elegidas | 3.13: algunas ruedas OCR/PDF aún tardan |
+| Lenguaje | Python **3.13** ⚑ (ADR-0012, ya instalado por el propietario) | Ecosistema de documentos y Excel; se verifica en `/p3-fundaciones` que todas las dependencias fijadas tengan rueda binaria o compilen en 3.13 en Windows | 3.12: ya no es la versión instalada; se mantendría solo si alguna rueda de OCR/PDF faltara en 3.13 |
 | Gestor de paquetes | `uv` | Rápido, lockfile reproducible, funciona igual en Windows | Poetry (más lento) |
 | API | FastAPI + Pydantic v2 | Indicado en el brief; esquemas Pydantic sirven también para validar salidas de la IA | — |
 | ORM / acceso a datos | SQLAlchemy 2.0 + `psycopg` 3 | Estándar, tipado, compatible con Alembic y Procrastinate | asyncpg directo (más código) |
@@ -62,16 +67,20 @@ mínimo.
 - **Scheduler del radar:** tarea periódica **cada hora**; el propio trabajo decide si corresponde correr comparando la hora
   configurada en `America/Santiago` y si ya existe una corrida exitosa para la "fecha radar" de hoy. Ventajas: inmune a
   cambios de horario, se recupera solo si el equipo estuvo apagado, nunca corre dos veces el mismo día.
-- Detalle operativo: el worker se conecta a Supabase por la **conexión directa / pooler en modo sesión** (puerto 5432),
-  no por el pooler en modo transacción, porque Procrastinate usa `LISTEN/NOTIFY`. Si no estuviera disponible, Procrastinate
-  funciona por sondeo (polling) cada pocos segundos, suficiente para este volumen.
+- Detalle operativo: el worker se conecta a Supabase por el **Session Pooler** (puerto 5432), no por el Transaction
+  Pooler (puerto 6543), porque Procrastinate usa `LISTEN/NOTIFY`, incompatible con el modo transacción (ADR-0012). Se
+  prefiere el Session Pooler sobre la conexión directa porque funciona por IPv4 sin depender de que la red del
+  propietario tenga IPv6 (la conexión directa de Supabase es IPv6 por defecto). Si `LISTEN/NOTIFY` no estuviera
+  disponible por algún motivo, Procrastinate funciona por sondeo (polling) cada pocos segundos, suficiente para este
+  volumen. La app (FastAPI) y Alembic usan la misma cadena (`DATABASE_URL`), por simplicidad.
 - Alternativas evaluadas: Celery + Redis (exceso de piezas), `pgqueuer` (más joven, sin cron maduro), cola casera con
   `SELECT … FOR UPDATE SKIP LOCKED` (reinventar reintentos y cron).
 
 ### 2.3 Almacenamiento de archivos ⚑
 
-- Interfaz `FileStorage` con dos implementaciones: **Supabase Storage** (bucket privado `documents`, prod y local vía
-  Supabase CLI) y **disco local** (pruebas unitarias).
+- Interfaz `FileStorage` con dos implementaciones: **Supabase Storage** (bucket privado `documents`; en desarrollo
+  apunta al proyecto Supabase de dev y en producción al proyecto de prod, sin Supabase CLI local — ADR-0012) y
+  **disco local** (pruebas unitarias).
 - Rutas lógicas: `org/<org_id>/opportunities/<código>/v<n>/<sha256>-<nombre>`; los Excel exportados en
   `org/<org_id>/exports/…`.
 - **Bandeja de carga (`intake/<código>/`)**: carpeta del sistema de archivos local (configurable, `INTAKE_ROOT`), vigilada
@@ -90,13 +99,17 @@ mínimo.
 - **El navegador nunca habla directo con la base**: las tablas van en el esquema `app` (no expuesto por la Data API de
   Supabase) y además con RLS activado sin políticas (deniega todo a `anon` y `authenticated`). Solo el backend accede.
 
-### 2.5 Frontend
+### 2.5 Frontend ⚑ (desvío del brief, aprobado — ADR-0013)
 
-- **Next.js (App Router) + TypeScript**, como dice el brief, pero mínimo: login, líneas de servicio/palabras clave,
-  lotes y ejecuciones, carga de documentos. Componentes con Tailwind + shadcn/ui. Cliente `@supabase/supabase-js` solo
-  para el login.
-- Se consideró FastAPI + Jinja2 + HTMX (sin Node): más simple para 4 pantallas, pero obligaría a rehacer la UI en la
-  etapa "Pantallas web". Se mantiene Next.js para no desviarse del brief.
+- **React + Vite + TypeScript**, aplicación de una sola página (SPA, sin renderizado en servidor): login, líneas de
+  servicio/palabras clave, lotes y ejecuciones, carga de documentos. Navegación con **React Router**. Componentes con
+  Tailwind + shadcn/ui. Cliente `@supabase/supabase-js` solo para el login (obtener el JWT); el resto de la app llama
+  a la API propia de FastAPI.
+- El brief sugería Next.js (App Router); se desvía porque la interfaz es interna y simple (4-5 pantallas, sin SEO ni
+  necesidad de SSR) y el propietario ya conoce React y Vite. Detalle y consecuencias (sitio estático, CORS explícito
+  entre `http://localhost:5173` y el backend) en ADR-0013.
+- Se consideró FastAPI + Jinja2 + HTMX (sin Node): descartado igualmente, se prefiere un SPA con React por
+  familiaridad del propietario.
 
 ### 2.6 Documentos: extracción, OCR y Excel ⚑ (desvío parcial del brief)
 
@@ -168,7 +181,8 @@ Notas de diseño que aplican a ambos:
 | Lint y formato Python | `ruff` (lint + format) |
 | Tipos | `mypy` en modo gradual (estricto en `scoring`, `review_excel`, `analysis`) |
 | Pruebas | `pytest`, `pytest-cov`, `respx` (simular httpx), `freezegun`/`time-machine` (tiempo), `hypothesis` (fechas y puntaje) |
-| Base de pruebas | Postgres con pgvector del `docker compose` en una base `test` separada |
+| Base de pruebas (local) | Mismo proyecto Supabase de desarrollo, esquema `test` separado con rol de Postgres restringido `test_runner` (`TEST_DATABASE_URL`, `search_path=test`); nunca toca el esquema `app` (ADR-0012, detalle en `docs/07` §0) |
+| Base de pruebas (CI) | Postgres + pgvector como servicio de GitHub Actions, efímero, sin relación con Supabase |
 | Frontend | ESLint + Prettier; Vitest para lo poco que haya |
 | CI | GitHub Actions: ruff, mypy, pytest (servicio Postgres), lint del frontend |
 | Pre-commit | `ruff`, detección de secretos (`gitleaks`) |
@@ -177,18 +191,21 @@ Notas de diseño que aplican a ambos:
 
 | Entorno | Base, Storage, Auth | API y worker |
 | --- | --- | --- |
-| Local (Windows) | **Supabase CLI** (`supabase start`, sobre Docker Desktop) | `docker compose` con `api`, `worker` (incluye Tesseract y LibreOffice) y `web` |
-| CI | Postgres + pgvector en contenedor; Auth simulado con JWT de prueba firmado localmente | — |
-| Producción (ahora) | Proyecto Supabase en la nube (Pro recomendado: respaldos diarios y sin pausa por inactividad) | **En el equipo del propietario** (Windows + Docker), mismos contenedores que en desarrollo. Radar programado a hora configurable y ejecución manual (ADR-0008) |
-| Producción (antes de cerrar MVP-2) | Igual | Servicio de contenedores a elegir: Railway, Render, Fly.io, Cloud Run o Azure Container Apps. Requisitos ya cumplidos por diseño: imágenes sin estado, configuración solo por variables de entorno, archivos en Supabase Storage, worker y API como procesos separados de la misma imagen |
+| Local (Windows, sin Docker — ADR-0012) | Proyecto Supabase en la nube **`sistema-propuestas-dev`** (São Paulo) | Procesos nativos de Windows: backend y worker en `.venv` (Python 3.13, `uv`), frontend con Node 22 (`npm run dev`); sin Docker ni Supabase CLI local |
+| CI | Postgres + pgvector como servicio de GitHub Actions (efímero, no es Supabase); Auth simulado con JWT de prueba firmado localmente | Se instala el mismo `.venv` del repo en el runner Linux de GitHub Actions |
+| Producción (ahora) | Proyecto Supabase en la nube separado del de dev (Pro recomendado: respaldos diarios y sin pausa por inactividad) | **En el equipo del propietario** (Windows, mismos procesos nativos que en desarrollo, sin Docker). Radar programado a hora configurable y ejecución manual (ADR-0008, ADR-0012) |
+| Producción (antes de cerrar MVP-2) | Igual | Servicio de contenedores a elegir: Railway, Render, Fly.io, Cloud Run o Azure Container Apps (construye la imagen desde el `Dockerfile` opcional del repo). Requisitos ya cumplidos por diseño: imágenes sin estado, configuración solo por variables de entorno, archivos en Supabase Storage, worker y API como procesos separados de la misma imagen |
 
 ---
 
 ## 3. Dependencias grandes aprobadas
 
-Supabase CLI, Procrastinate, Tesseract (binario), LibreOffice headless (binario en la imagen del worker, ~400 MB),
-SDK `anthropic` y `openai`, Next.js. Docling queda **como plan B documentado**: se instala solo si el eval lo
-justifica, con nueva aprobación.
+Procrastinate, Tesseract (binario, instalación nativa en Windows para dev desde `/p7`; binario en la imagen del
+worker para la producción en contenedor), LibreOffice headless (idem), SDK `anthropic` y `openai`, React + Vite +
+React Router (ADR-0013). Docling
+queda **como plan B documentado**: se instala solo si el eval lo justifica, con nueva aprobación. Supabase CLI no es
+una dependencia del desarrollo (ADR-0012); si se usa alguna vez es solo como herramienta opcional de línea de
+comandos contra el proyecto en la nube (p. ej. generar tipos TypeScript), nunca para levantar un stack local.
 
 ## 4. ADR registrados (`docs/decisions/`)
 
@@ -203,3 +220,5 @@ justifica, con nueva aprobación.
 9. [ADR-0009](decisions/ADR-0009-zona-horaria-api-mp.md) Zona horaria asumida (`America/Santiago`) para las fechas de la API; Magallanes/Isla de Pascua como riesgo.
 10. [ADR-0010](decisions/ADR-0010-radar-detalle-toda-publicada.md) El radar pide el detalle de toda licitación nueva en Publicada; ritmo, backoff y ventana de cuota.
 11. [ADR-0011](decisions/ADR-0011-resumen-ia-excel1.md) Resumen IA en el Excel 1 (MVP-1), cacheado y contra el mismo presupuesto de IA.
+12. [ADR-0012](decisions/ADR-0012-entorno-dev-windows-sin-docker.md) Entorno de desarrollo en Windows sin Docker; Supabase en la nube también para desarrollo; Python 3.13.
+13. [ADR-0013](decisions/ADR-0013-frontend-react-vite.md) Frontend React + Vite + TypeScript (SPA) en vez de Next.js.

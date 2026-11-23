@@ -4,7 +4,7 @@ Estado: **RESPONDIDAS** el 21-11-2026. Se conserva el registro de pregunta, resp
 
 | # | Pregunta | Respuesta del propietario | Aplicado en |
 | --- | --- | --- | --- |
-| 1 | ¿Dónde corren la API y el worker en producción? | Por ahora en su equipo (Windows + Docker). Radar programado a hora configurable y manual. Todo en contenedores; servicio en la nube (Railway, Render, Fly.io, Cloud Run o Azure Container Apps) se elige antes de cerrar MVP-2. | ADR-0008, `01` §2.9, `08` R-11 |
+| 1 | ¿Dónde corren la API y el worker en producción? | Por ahora en su equipo (Windows, procesos nativos, sin Docker por falta de virtualización — ADR-0012). Radar programado a hora configurable y manual. Servicio de contenedores en la nube (Railway, Render, Fly.io, Cloud Run o Azure Container Apps) se elige antes de cerrar MVP-2. | ADR-0008, ADR-0012, `01` §2.9, `08` R-11 |
 | 2 | ¿Arquitectura liviana con Supabase, Procrastinate y Supabase Auth? | Aprobada. El backend valida el JWT de Supabase; los roles viven en tablas propias. | ADR-0001, ADR-0003 |
 | 3 | ¿Mover el repo fuera de OneDrive? | Sí, a `C:\dev\sistema-propuestas-mp`; lo hace el propietario. | `04`, `08` R-12 (resuelto) |
 | 4 | Proveedores de IA, tope de gasto y retención | Comparar Anthropic (Opus 5.5 y Sonnet 5.5) contra OpenAI detrás de la capa propia. Tope configurable, inicial USD 40/mes, alerta al 80 %. Sin retención cero en MVP-1/2; sí exige que el proveedor no use los datos para entrenar. Se revisa en MVP-3. | ADR-0005, `01` §2.7, `05` E5-11, E7-4 |
@@ -17,6 +17,10 @@ Estado: **RESPONDIDAS** el 21-11-2026. Se conserva el registro de pregunta, resp
 
 Desvío adicional resuelto: **`bids` al detectar — NO aprobado.** El estado del embudo va en `opportunities`; `bids`
 nace con "Descargar" (ADR-0006, `03`, `05`, `02`, `06`).
+
+Cambio de plan del propietario (22-11-2026, antes de `/p3-fundaciones`): virtualización deshabilitada en el equipo y
+sin acceso a la BIOS → no hay Docker. Desarrollo local nativo en Windows (Python 3.13, Node 22) contra un proyecto
+Supabase en la nube dedicado a desarrollo; Tesseract y LibreOffice recién nativos en `/p7`. Ver ADR-0012.
 
 ## Preguntas abiertas
 

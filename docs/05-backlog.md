@@ -38,7 +38,7 @@ fechas en una licitación de Magallanes/Isla de Pascua (ninguna cayó en la mues
 
 | ID | Historia | Criterios de aceptación | Est. | Dep. |
 | --- | --- | --- | --- | --- |
-| E1-1 | Como desarrollador quiero levantar todo con un comando en Windows. | `supabase start` + `docker compose up` levantan base, Storage, Auth, API, worker y web; `/health` responde 200 con estado de base y cola. README paso a paso Windows y macOS. | M | Aprobación de 01 |
+| E1-1 | Como desarrollador quiero levantar todo con pocos comandos en Windows, sin Docker. | Base, Storage y Auth ya existen en el proyecto Supabase de desarrollo (ADR-0012); `scripts/dev-api.ps1`, `scripts/dev-worker.ps1` y `scripts/dev-web.ps1` levantan API, worker y frontend nativos; `/health` responde 200 con estado de base y cola. README paso a paso para Windows. | M | Aprobación de 01, ADR-0012 |
 | E1-2 | Como desarrollador quiero configuración por variables de entorno y logs JSON. | `.env.example` completo sin valores; logs JSON con `request_id`; prueba que verifica que un ticket ficticio en una URL no aparece en el log. | S | E1-1 |
 | E1-3 | Como desarrollador quiero migraciones iniciales. | Alembic crea `organizations`, `users`, `organization_members`, `api_credentials`, `service_lines`, `audit_events` en esquema `app` con RLS activado; `upgrade` y `downgrade` probados. | M | E1-1 |
 | E1-4 | Como administrador quiero las 5 líneas de servicio del brief precargadas y editables. | Semilla idempotente con nombre, descripción, palabras clave positivas y de exclusión (sección 2 del brief); rubros vacíos hasta /p2. | S | E1-3 |
