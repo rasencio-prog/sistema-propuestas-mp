@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from sp.api.deps import CurrentUser, get_current_user, get_db, require_role
 from sp.modules.audit import service as audit_service
 from sp.modules.radar.models import RadarRun
-from sp.modules.radar.tasks import run_radar_task
+from sp.modules.radar.tasks import clear_stalled_radar_run_jobs, run_radar_task
 
 router = APIRouter(prefix="/api/radar", tags=["radar"])
 
@@ -51,14 +51,24 @@ def list_radar_runs(
 
 
 @router.post("/run", status_code=202)
-def trigger_radar_run(
+async def trigger_radar_run(
     request: Request,
     current_user: CurrentUser = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     """Encola el radar (worker de Procrastinate); no corre en el proceso de la API porque una
-    corrida completa puede tardar ~18 minutos (ADR-0010)."""
-    run_radar_task.defer(trigger="manual")
+    corrida completa puede tardar horas con la carga inicial completa (ADR-0010).
+
+    `defer_async` (no `defer`): el conector de Procrastinate de esta app es asincrono
+    (`sp.jobs.app`, abierto en el lifespan de `main.py`); su variante sincrona nunca fija el
+    `search_path` del esquema `app` (ADR-0014) y falla con "relation ... does not exist" en
+    cuanto se usa (encontrado al probar el endpoint real, /p4-radar segunda revision).
+
+    `clear_stalled_radar_run_jobs` antes de encolar: si una corrida anterior quedo colgada (equipo
+    apagado a mitad de camino, ADR-0008), su `lock="radar-run"` bloquearia esta corrida nueva para
+    siempre sin esto."""
+    await clear_stalled_radar_run_jobs(db)
+    await run_radar_task.defer_async(trigger="manual")
     audit_service.record_event(
         db,
         action="radar.manual_run_requested",

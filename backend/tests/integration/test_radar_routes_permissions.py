@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+from sp.api import radar_routes
 from sp.api.deps import CurrentUser, get_current_user
 from sp.core.db import get_db
 from sp.main import app
@@ -27,7 +28,15 @@ def seeded_organization(db_session) -> dict:
 @pytest.fixture
 def client(db_session, seeded_organization, monkeypatch: pytest.MonkeyPatch):
     deferred: list[dict] = []
-    monkeypatch.setattr(run_radar_task, "defer", lambda **kwargs: deferred.append(kwargs))
+
+    async def _fake_defer_async(**kwargs):
+        deferred.append(kwargs)
+
+    async def _fake_clear_stalled_jobs(db) -> None:
+        return None
+
+    monkeypatch.setattr(run_radar_task, "defer_async", _fake_defer_async)
+    monkeypatch.setattr(radar_routes, "clear_stalled_radar_run_jobs", _fake_clear_stalled_jobs)
 
     def _current_user(role: str) -> CurrentUser:
         return CurrentUser(

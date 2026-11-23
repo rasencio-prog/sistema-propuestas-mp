@@ -8,13 +8,14 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from procrastinate.jobs import Status as JobStatus
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from sp.core import crypto
 from sp.core.db import get_session_factory
 from sp.core.logging import get_logger
-from sp.core.timezones import chile_calendar_date, chile_now
+from sp.core.timezones import UTC_TZ, chile_calendar_date, chile_now
 from sp.jobs.app import app
 from sp.modules.organizations import credentials as credentials_service
 from sp.modules.organizations.models import Organization
@@ -35,6 +36,7 @@ logger = get_logger(__name__)
 
 DEFAULT_WINDOW_START_HOUR = 1
 DEFAULT_WINDOW_END_HOUR = 5
+STALLED_JOB_SECONDS_SINCE_HEARTBEAT = 30.0
 
 # Unica organizacion de MVP-1 (docs/00-decisiones-propietario.md, sembrada en la migracion 0003).
 # Filtrar por nombre (en vez de "la primera que aparezca") evita ambiguedad si alguna vez hay mas
@@ -114,6 +116,46 @@ def run_radar_task(trigger: str = "scheduled") -> None:
     logger.info("radar_task_done", status=outcome.status, run_id=str(outcome.run_id))
 
 
+async def clear_stalled_radar_run_jobs(db: Session) -> None:
+    """Si el equipo del propietario se apaga a mitad de una corrida (ADR-0008, sin Docker/sin
+    servidor dedicado), el worker muere sin avisar y su job `radar.run` queda `doing` para siempre
+    (nadie vuelve a actualizar su heartbeat): el `lock="radar-run"` de la tarea bloquearia cualquier
+    corrida nueva sin fin. Antes de encolar una corrida, se marcan como `failed` los jobs de
+    `radar.run` sin heartbeat reciente (>30s, mismo umbral que usa el propio worker para
+    considerarlos abandonados), liberando el lock. Lo ya guardado en `opportunities` nunca se pierde
+    (cada licitacion se confirma individualmente, ADR-0010): la corrida siguiente retoma donde
+    quedo, no repite trabajo ya hecho.
+
+    `db` se inyecta (igual que `run_radar_for_organization`/`is_radar_due`) para poder probarse sin
+    tocar el engine singleton de `sp.core.db`."""
+    stalled = await app.job_manager.get_stalled_jobs(
+        task_name="radar.run", seconds_since_heartbeat=STALLED_JOB_SECONDS_SINCE_HEARTBEAT
+    )
+    if not stalled:
+        return
+
+    for job in stalled:
+        assert job.id is not None
+        await app.job_manager.finish_job_by_id_async(job_id=job.id, status=JobStatus.FAILED, delete_job=False)
+        logger.warning("radar_stalled_job_cleared", job_id=job.id)
+
+    # El `lock="radar-run"` garantiza que solo puede haber una corrida real a la vez: si llegamos
+    # hasta aqui es porque esa corrida (la que tenia el lock colgado) murio con su worker. Su fila
+    # en `radar_runs` quedo `running` para siempre (nadie la actualiza salvo al terminar) y
+    # distorsiona la pantalla "Lotes y ejecuciones"; se marca `failed` para que la corrida nueva no
+    # quede confundida con una que sigue "en curso".
+    db.execute(
+        update(RadarRun)
+        .where(RadarRun.status == "running")
+        .values(
+            status="failed",
+            errors=[{"stage": "run", "error": "corrida_interrumpida_equipo_apagado"}],
+            finished_at=datetime.now(UTC_TZ),
+        )
+    )
+    db.commit()
+
+
 def is_radar_due(db: Session, *, now_chile: datetime) -> bool:
     """ADR-0007: logica pura de la decision (inyectando la sesion y la hora de Chile, testeable
     con reloj simulado sin tocar Procrastinate ni el engine singleton)."""
@@ -138,14 +180,19 @@ def is_radar_due(db: Session, *, now_chile: datetime) -> bool:
 
 @app.periodic(cron="0 * * * *", tzinfo="America/Santiago", periodic_id="radar-hourly-tick")
 @app.task(name="radar.scheduler_tick")
-def radar_scheduler_tick(timestamp: int) -> None:
+async def radar_scheduler_tick(timestamp: int) -> None:
     """ADR-0007: corre cada hora (reloj de Chile); encola el radar solo dentro de la ventana
-    configurada y si todavia no hay una corrida exitosa para la fecha radar de hoy."""
+    configurada y si todavia no hay una corrida exitosa para la fecha radar de hoy.
+
+    `defer_async` (no `defer`): el conector de Procrastinate de esta app es asincrono; su variante
+    sincrona nunca fija el `search_path` del esquema `app` (ADR-0014) y falla en cuanto se usa."""
     db = get_session_factory()()
     try:
         due = is_radar_due(db, now_chile=chile_now())
+        if due:
+            await clear_stalled_radar_run_jobs(db)
     finally:
         db.close()
 
     if due:
-        run_radar_task.defer(trigger="scheduled")
+        await run_radar_task.defer_async(trigger="scheduled")
