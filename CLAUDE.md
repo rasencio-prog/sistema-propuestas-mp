@@ -38,11 +38,21 @@ Decisiones del propietario: `docs/00-decisiones-propietario.md`.
 - Al terminar cada tarea, detenerse y resumir: qué se hizo, qué falta, riesgos.
 
 ## Comandos estándar
-(Se completan en la etapa de fundaciones — `/p3-fundaciones`.)
-- Levantar: `TODO`
-- Pruebas: `TODO`
-- Migraciones: `TODO`
-- Lint: `TODO`
+Entorno Windows nativo, sin Docker (ADR-0012). Detalle completo y configuración única de Supabase en `README.md`.
+
+- Levantar:
+  - API: `.\scripts\dev-api.ps1`
+  - Worker: `.\scripts\dev-worker.ps1`
+  - Frontend: `.\scripts\dev-web.ps1`
+- Pruebas:
+  - Backend: `cd backend; python -m uv run pytest` (unitarias siempre corren; integración requiere
+    `TEST_DATABASE_URL` en `.env`, ver README §4)
+  - Frontend: `cd frontend; npm run build` (incluye chequeo de tipos; no hay pruebas de componentes todavía)
+- Migraciones: `cd backend; python -m uv run alembic upgrade head`
+- Lint:
+  - Backend: `cd backend; python -m uv run ruff check .` y `python -m uv run ruff format .`
+  - Tipos backend: `cd backend; python -m uv run mypy src`
+  - Frontend: `cd frontend; npm run lint`
 
 ## Idioma
 Código, nombres de tablas y variables en inglés. Documentación, Excel y textos para el usuario en español de Chile.

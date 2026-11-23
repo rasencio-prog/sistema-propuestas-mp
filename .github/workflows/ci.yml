@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      # Postgres + pgvector efimero de este workflow (ADR-0012, docs/07 S0): nunca Supabase en CI.
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/postgres?options=-csearch_path%3Dapp
+      TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/postgres?options=-csearch_path%3Dtest
+      SUPABASE_URL: https://ci-placeholder.supabase.co
+      SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      # Clave Fernet ficticia, solo para este workflow efimero: no protege datos reales, no es un secreto.
+      APP_ENCRYPTION_KEY: rY1GfETItabj9drMrYKoShU3L7RbyaW01qSgPPw8UrM=
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Instalar uv
+        run: pip install uv
+
+      - name: Crear esquemas app y test en el Postgres efimero
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d postgres \
+            -c "CREATE SCHEMA IF NOT EXISTS app;" \
+            -c "CREATE SCHEMA IF NOT EXISTS test;"
+
+      - name: Instalar dependencias (uv.lock)
+        run: uv sync --locked
+
+      - name: Lint (ruff)
+        run: uv run ruff check . && uv run ruff format --check .
+
+      - name: Tipos (mypy)
+        run: uv run mypy src
+
+      - name: Migraciones (alembic upgrade head)
+        run: uv run alembic upgrade head
+
+      - name: Pruebas (unitarias + integracion contra el Postgres efimero)
+        run: uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (incluye chequeo de tipos)
+        run: npm run build
